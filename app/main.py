@@ -8,7 +8,7 @@ from dto import CheckCreated, CheckResult, to_check_result, _status
 
 AGENT = os.environ.get("UPSTAGE_AGENT_ID", "agt_5HHQZgemm6hmRVLHyGu4dG")
 CONFIG_ID = os.environ.get("UPSTAGE_CONFIG_ID", "5")
-client = OpenAI(api_key=os.environ.get("UPSTAGE_API_KEY", ""), base_url="https://api.upstage.ai/v2",
+client = OpenAI(api_key=os.environ.get("UPSTAGE_API_KEY") or "missing", base_url="https://api.upstage.ai/v2",
                 default_headers={"x-project-id": os.environ.get("UPSTAGE_PROJECT_ID", "proj_UVMuo7ZXt5heYMoei8ocJH")})
 
 app = FastAPI(title="trade-doc-origin-check")
