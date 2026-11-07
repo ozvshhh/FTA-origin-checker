@@ -1,0 +1,86 @@
+{
+  "SUP_CRITERION_NOT_MET": {
+    "stage": 1,
+    "label": "원산지확인서 결정기준 미충족(N)"
+  },
+  "SUP_ORIGIN_MISMATCH": {
+    "stage": 1,
+    "label": "원산지확인서 원산지가 한국이 아님"
+  },
+  "CO_INVOICE_NO_MISMATCH": {
+    "stage": 2,
+    "label": "원산지증명서 송장번호 ≠ 인보이스"
+  },
+  "CO_QTY_MISMATCH": {
+    "stage": 2,
+    "label": "원산지증명서 수량 ≠ 인보이스"
+  },
+  "CO_CRITERION_MISMATCH": {
+    "stage": 2,
+    "label": "원산지증명서 결정기준 ≠ 원산지확인서"
+  },
+  "CO_ORIGIN_MISMATCH": {
+    "stage": 2,
+    "label": "원산지증명서 생산국 ≠ 원산지확인서"
+  },
+  "CO_CONSIGNEE_MISMATCH": {
+    "stage": 2,
+    "label": "원산지증명서 수하인이 다른 회사"
+  },
+  "CO_DESCRIPTION_MISMATCH": {
+    "stage": 2,
+    "label": "원산지증명서 품명이 다른 물품"
+  },
+  "CO_HS_MISMATCH": {
+    "stage": 2,
+    "label": "HS 앞 6자리 불일치"
+  },
+  "SUP_EXPIRED": {
+    "stage": 2,
+    "label": "원산지확인서 포괄확인기간 만료"
+  },
+  "SUP_RECIPIENT_MISMATCH": {
+    "stage": 2,
+    "label": "원산지확인서 공급받는 자 ≠ 수출자"
+  },
+  "DUPLICATE_DOCUMENT": {
+    "stage": 3,
+    "label": "같은 종류 서류가 2건 이상"
+  },
+  "EXPDEC_INVOICE_NO_MISMATCH": {
+    "stage": 3,
+    "label": "수출신고필증 송품장부호 ≠ 인보이스"
+  },
+  "EXPDEC_QTY_MISMATCH": {
+    "stage": 3,
+    "label": "수출신고필증 수량 ≠ 인보이스"
+  },
+  "CO_HS_MINOR_DIFF": {
+    "stage": 3,
+    "label": "HS 10자리 중 뒤 4자리 차이"
+  },
+  "CO_TRANSPORT_MISMATCH": {
+    "stage": 3,
+    "label": "원산지증명서 운송 정보 ≠ B/L(직접운송)"
+  },
+  "CO_ISSUE_DATE_LATE": {
+    "stage": 3,
+    "label": "원산지증명서 발급일이 적재일보다 3일 넘게 늦음"
+  },
+  "SUP_AGREEMENT_MISMATCH": {
+    "stage": 3,
+    "label": "원산지확인서 협정명칭 불일치"
+  },
+  "CO_CRITERION_NOT_PSR": {
+    "stage": 3,
+    "label": "원산지증명서 결정기준이 협정 PSR에 없음"
+  },
+  "QTY_MISMATCH": {
+    "stage": 3,
+    "label": "패킹리스트 수량 ≠ 인보이스"
+  },
+  "NET_GT_GROSS": {
+    "stage": 3,
+    "label": "순중량 > 총중량"
+  }
+}

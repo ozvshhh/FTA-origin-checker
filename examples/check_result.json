@@ -1,0 +1,44 @@
+{
+  "job_id": "job_demo",
+  "status": "completed",
+  "judge": {
+    "invoice_no": "SM-2609-0044",
+    "decision": "보완 요청",
+    "reason": "원산지증명서 송장번호 SM-2609-0041이 인보이스 SM-2609-0044와 다름",
+    "mismatch_codes": [
+      "CO_INVOICE_NO_MISMATCH"
+    ],
+    "missing_documents": []
+  },
+  "mismatches": [
+    {
+      "code": "CO_INVOICE_NO_MISMATCH",
+      "stage": 2,
+      "label": "원산지증명서 송장번호 ≠ 인보이스"
+    }
+  ],
+  "follow_up": {
+    "kind": "보완_요청_초안",
+    "text": "제목: 원산지증명서 재발급 요청 …"
+  },
+  "extracted": {
+    "인보이스_추출": [
+      {
+        "invoice_no": "SM-2609-0044",
+        "items": [
+          {
+            "description": "FROZEN MACKEREL",
+            "hs_code": "0303540000",
+            "quantity": 18000
+          }
+        ]
+      }
+    ]
+  },
+  "extracted_meta": {
+    "인보이스_추출": [
+      {}
+    ]
+  },
+  "error": null
+}
