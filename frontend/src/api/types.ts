@@ -1,0 +1,272 @@
+// 백엔드 DTO(com.tradedoc.origincheck.*.dto)와 같은 모양. 키는 snake_case, 추출 결과 키만 워크플로 노드 이름(한글).
+
+// ---- 공통 ----
+export interface ErrorResponse {
+  code: string
+  message: string
+  path: string
+  timestamp: string
+}
+
+export interface PageResponse<T> {
+  items: T[]
+  page: number
+  size: number
+  total_elements: number
+  total_pages: number
+}
+
+// ---- 인증 ----
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+export interface SignupRequest {
+  email: string
+  password: string
+  name: string
+  company?: string
+}
+
+export interface TokenResponse {
+  access_token: string
+  token_type: 'bearer'
+  expires_in: number
+}
+
+export interface MeResponse {
+  id: number
+  email: string
+  name: string
+  company: string | null
+  expires_at: string
+}
+
+// ---- enum ----
+export type CheckStatus = 'queued' | 'in_progress' | 'completed' | 'failed'
+export type Decision = '미적용' | '보완 요청' | '검토 필요' | '특혜 적용'
+export type FollowUpKind = '보완_요청_초안' | '미적용_안내' | '검토_메모' | '미분류_안내'
+export type RequiredDocument = '인보이스' | '원산지증명서' | '원산지확인서' | 'B/L' | '수출신고필증'
+export type Readability = 'clear' | 'unclear' | ''
+
+// ---- 점검 ----
+export interface OriginCheckCreatedResponse {
+  id: number
+  status: CheckStatus
+}
+
+export interface OriginCheckSummary {
+  id: number
+  title: string
+  file_name: string
+  status: CheckStatus
+  decision: Decision | null
+  invoice_no: string | null
+  created_at: string
+  completed_at: string | null
+}
+
+export interface CheckError {
+  code: 'AGENT_ERROR' | 'AGENT_FAILED' | 'AGENT_TIMEOUT' | 'RESULT_PARSE_ERROR' | 'RESULT_INCOMPLETE' | string
+  message: string
+}
+
+/** GET /api/v1/origin-checks/{id}. completed 전에는 judge·follow_up 이 null, 목록은 비어 있다. */
+export interface OriginCheckDetail {
+  id: number
+  title: string
+  file_name: string
+  status: CheckStatus
+  created_at: string
+  completed_at: string | null
+  job_id: string | null
+  judge: AgentJudge | null
+  mismatches: AgentMismatch[]
+  follow_up: AgentFollowUp | null
+  extracted: AgentExtracted
+  extracted_meta: AgentExtractedMeta
+  error: CheckError | null
+}
+
+export interface AgentJudge {
+  invoice_no: string | null
+  decision: Decision
+  reason: string
+  mismatch_codes: string[]
+  missing_documents: RequiredDocument[] | string[]
+}
+
+export interface AgentMismatch {
+  code: string
+  /** 1=미적용, 2=보완 요청, 3=검토 필요. 모르는 코드면 null */
+  stage: 1 | 2 | 3 | null
+  label: string
+}
+
+export interface AgentFollowUp {
+  kind: FollowUpKind
+  /** 마크다운 */
+  text: string
+}
+
+// ---- 추출 결과 (없는 값은 "" / 0) ----
+export interface InvoiceItem {
+  description: string
+  hs_code: string
+  quantity: number
+  amount: number
+}
+
+export interface InvoiceExtraction {
+  invoice_no: string
+  invoice_date: string
+  shipper: string
+  consignee: string
+  port_of_loading: string
+  port_of_discharge: string
+  vessel: string
+  incoterm: string
+  total_amount: number
+  origin_declaration: string
+  origin_declaration_auth_no: string
+  readability: Readability
+  items: InvoiceItem[]
+}
+
+export interface PackingListExtraction {
+  invoice_no: string
+  consignee: string
+  goods_description: string
+  quantity: number
+  cartons: number
+  net_weight_kg: number
+  gross_weight_kg: number
+  readability: Readability
+}
+
+export interface BillOfLadingExtraction {
+  bl_no: string
+  shipper: string
+  vessel: string
+  voyage_no: string
+  port_of_loading: string
+  port_of_discharge: string
+  transshipment_port: string
+  goods_description: string
+  gross_weight_kg: number
+  laden_on_board_date: string
+  readability: Readability
+}
+
+export interface CertificateOfOriginItem {
+  description: string
+  quantity: number
+  hs_code: string
+  origin_criterion: string
+  gross_weight_kg: number
+  fob_value: number
+}
+
+export interface CertificateOfOriginExtraction {
+  reference_no: string
+  form_type: string
+  exporter: string
+  consignee: string
+  departure_date: string
+  vessel: string
+  port_of_discharge: string
+  invoice_no: string
+  invoice_date: string
+  exporter_country: string
+  importing_country: string
+  issue_date: string
+  issued_retroactively: boolean
+  readability: Readability
+  items: CertificateOfOriginItem[]
+}
+
+export interface OriginConfirmationItem {
+  agreement: string
+  hs_code: string
+  description: string
+  origin_criterion: string
+  fulfilled: 'Y' | 'N' | ''
+  origin_country: string
+  period_from: string
+  period_to: string
+}
+
+export interface OriginConfirmationExtraction {
+  issue_no: string
+  supplier: string
+  recipient: string
+  issue_date: string
+  readability: Readability
+  items: OriginConfirmationItem[]
+}
+
+export interface ExportDeclarationItem {
+  hs_code: string
+  description: string
+  quantity: number
+  origin_country: string
+}
+
+export interface ExportDeclarationExtraction {
+  declaration_no: string
+  declaration_date: string
+  acceptance_date: string
+  exporter: string
+  manufacturer: string
+  buyer: string
+  destination_country: string
+  vessel: string
+  invoice_no: string
+  payment_amount: string
+  readability: Readability
+  items: ExportDeclarationItem[]
+}
+
+export interface AgentExtracted {
+  인보이스_추출: InvoiceExtraction[]
+  패킹리스트_추출: PackingListExtraction[]
+  BL_추출: BillOfLadingExtraction[]
+  원산지증명서_추출: CertificateOfOriginExtraction[]
+  원산지확인서_추출: OriginConfirmationExtraction[]
+  수출신고필증_추출: ExportDeclarationExtraction[]
+}
+
+export type ExtractNode = keyof AgentExtracted
+
+// ---- 신뢰도·위치 ----
+/** 페이지 크기 대비 0~1 비율 좌표. 왼쪽 위가 (0, 0) */
+export interface Point {
+  x: number
+  y: number
+}
+
+export interface FieldMeta {
+  confidence: 'high' | 'medium' | 'low' | string
+  score: number | null
+  /** 1부터, 묶음 PDF 기준. 위치가 없으면 -1 */
+  page: number
+  /** 단어마다 꼭짓점 4개(왼쪽 위부터 시계 방향) */
+  boxes: Point[][]
+}
+
+/** 추출 DTO 와 같은 필드에 FieldMeta 가 붙는다. items 는 품목별 같은 구조. */
+export type MetaOf<T> = {
+  [K in keyof T]?: T[K] extends (infer I)[] ? MetaOf<I>[] : FieldMeta | null
+}
+
+export type DocumentMeta<T> = MetaOf<T> & { source_files: Record<string, unknown>[] }
+
+export interface AgentExtractedMeta {
+  인보이스_추출: DocumentMeta<InvoiceExtraction>[]
+  패킹리스트_추출: DocumentMeta<PackingListExtraction>[]
+  BL_추출: DocumentMeta<BillOfLadingExtraction>[]
+  원산지증명서_추출: DocumentMeta<CertificateOfOriginExtraction>[]
+  원산지확인서_추출: DocumentMeta<OriginConfirmationExtraction>[]
+  수출신고필증_추출: DocumentMeta<ExportDeclarationExtraction>[]
+}

@@ -1,7 +1,23 @@
+# 로컬 개발용 MySQL. 백엔드·프론트는 각자 실행한다(README 참고).
 services:
-  api:
-    build: .
+  mysql:
+    image: mysql:8.4
     ports:
-      - "8000:8000"
-    env_file: .env
+      - "${DB_PORT:-3306}:3306"
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-origin_check}
+      MYSQL_USER: ${DB_USERNAME:-origin_check}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-origin_check}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      TZ: UTC
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${DB_ROOT_PASSWORD:-root}"]
+      interval: 5s
+      retries: 20
     restart: unless-stopped
+
+volumes:
+  mysql-data:

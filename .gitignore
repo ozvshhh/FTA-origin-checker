@@ -8,7 +8,15 @@ codebase-map*.md
 다음_할일.md
 .claude/
 
+# 비밀 값
 .env
-__pycache__/
-.venv/
-node_modules/
+*.local
+
+# OS · 에디터
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# 업로드 파일(로컬 저장소)
+backend/data/

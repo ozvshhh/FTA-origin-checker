@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: origin-check
+  config:
+    import: optional:file:../.env[.properties]
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:origin_check}?serverTimezone=UTC&characterEncoding=UTF-8
+    username: ${DB_USERNAME:origin_check}
+    password: ${DB_PASSWORD:origin_check}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 51MB
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:}
+    expires-min: ${JWT_EXPIRES_MIN:60}
+    issuer: fta-origin-check-api
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  storage:
+    dir: ${STORAGE_DIR:./data/uploads}
+  agent:
+    # upstage: 실제 Upstage 호출 / fake: fake-result-path 의 JSON 을 결과로 돌려줌(로컬·프론트 개발용)
+    mode: ${AGENT_MODE:upstage}
+    fake-result-path: ${AGENT_FAKE_RESULT:}
+    fake-delay: ${AGENT_FAKE_DELAY:10s}
+    poll-interval-ms: ${AGENT_POLL_INTERVAL_MS:5000}
+    timeout: ${AGENT_TIMEOUT:30m}
+  upstage:
+    base-url: ${UPSTAGE_BASE_URL:https://api.upstage.ai/v2}
+    api-key: ${UPSTAGE_API_KEY:}
+    # 에이전트가 속한 프로젝트. 업로드한 파일과 에이전트가 같은 프로젝트여야 한다(다르면 403 No access to file).
+    # 빈 값으로 두면 x-project-id 헤더를 보내지 않는다(키의 기본 프로젝트)
+    project-id: ${UPSTAGE_PROJECT_ID:proj_UVMuo7ZXt5heYMoei8ocJH}
+    agent-id: ${UPSTAGE_AGENT_ID:agt_5HHQZgemm6hmRVLHyGu4dG}
+    config-id: ${UPSTAGE_CONFIG_ID:5}
