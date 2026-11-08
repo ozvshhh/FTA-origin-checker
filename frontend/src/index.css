@@ -74,6 +74,8 @@ button:disabled, .btn:disabled { color: var(--color-text-disabled); cursor: not-
   color: var(--color-on-accent); background: var(--color-accent); border-color: var(--color-accent);
 }
 .btn-primary:hover, button[type='submit']:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
+.btn-danger { color: #fff; background: var(--tone-danger-solid); border-color: var(--tone-danger-solid); }
+.btn-danger:hover { background: color-mix(in srgb, var(--tone-danger-solid) 88%, #000); border-color: color-mix(in srgb, var(--tone-danger-solid) 88%, #000); }
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn-icon { width: var(--control-h-md); padding: 0; color: var(--color-text-secondary); }
 .btn-icon:hover { color: var(--color-text); }
@@ -154,6 +156,12 @@ input:focus, select:focus, textarea:focus {
   padding: var(--space-6);
   width: min(var(--modal-w-sm), 100%);
 }
+/* 확인 창 (삭제 등) */
+.modal.confirm { width: min(400px, 100%); padding: var(--space-5) var(--space-6); }
+.confirm-title { font-size: var(--text-lg); font-weight: var(--weight-bold); }
+.confirm-body { margin-top: var(--space-2); color: var(--color-text-secondary); line-height: var(--leading-relaxed); }
+.confirm-body b { color: var(--color-text); font-weight: var(--weight-semibold); }
+.confirm-foot { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); }
 
 /* ── PDF 하이라이트 박스 (화면명세서 §5.3.3) — .hl-box + .hl-{mismatch|low|mid|high|selected} ── */
 /* 테두리 없이 형광펜처럼 칠한다 (테두리가 주변 글자를 가리지 않게). multiply 로 글자는 그대로 진하게 보인다 */
@@ -402,6 +410,9 @@ a.sb-row:focus-visible { outline-offset: -2px; }
 @keyframes indeterminate { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
 .failed { margin-top: var(--space-6); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-2); border: 1px solid var(--tone-danger-border); background: var(--tone-danger-bg); border-radius: var(--radius-lg); }
 .failed-title { display: flex; align-items: center; gap: var(--space-2); font-weight: var(--weight-semibold); color: var(--tone-danger-fg); }
+.failed-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+/* 다시 실행·삭제가 실패했을 때 도구 줄 아래 한 줄 안내 */
+.action-error { display: flex; align-items: center; gap: 6px; margin: calc(var(--space-6) * -1 + var(--space-2)) 0 var(--space-5); font-size: var(--text-sm); color: var(--tone-danger-fg); }
 
 
 /* 오른쪽 속성 열 */

@@ -1,10 +1,13 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { ApiError } from '../api/client'
+import { originChecksApi } from '../api/originChecks'
 import type { AgentExtractedMeta, ExtractNode, FieldMeta, OriginCheckDetail } from '../api/types'
 import { isBusy, useChecks } from '../checks/ChecksContext'
 import { usePanel, type PanelKind } from '../checks/usePanel'
 import { COLLAPSE_ACTIVE_GROUP, keepListParams } from '../components/CheckSidebar'
-import { IconAlert, IconArrowLeft, IconCheck, IconChevronDown, IconChevronRight, IconChevronUp, IconFile, IconLink, IconMail, IconScale } from '../components/icons'
+import { ConfirmDialog } from '../components/ConfirmDialog'
+import { IconAlert, IconArrowLeft, IconCheck, IconChevronDown, IconChevronRight, IconChevronUp, IconFile, IconLink, IconMail, IconRefresh, IconScale, IconTrash } from '../components/icons'
 import { FOLLOW_UP_TITLE, LawPanel, MailPanel, PdfPanel, SidePanel } from '../components/SidePanels'
 import { COUNTRY_FIELDS, Country } from '../components/Country'
 import { DocChip } from '../components/DocChip'
@@ -20,6 +23,17 @@ import { memoOf, shortCompany } from '../utils/party'
 
 const STAGE_TONE = { 1: 'danger', 2: 'warning', 3: 'caution' } as const
 
+/** 다시 실행·삭제가 실패했을 때 안내 (API 명세 §2.5-2, §2.5-3) */
+function actionMessage(e: unknown) {
+  if (!(e instanceof ApiError)) return '요청을 보내지 못했습니다. 네트워크를 확인하고 다시 시도하세요.'
+  switch (e.code) {
+    case 'CHECK_NOT_FAILED': return '실패한 건만 다시 실행할 수 있어요.'
+    case 'CHECK_IN_PROGRESS': return 'AI가 처리 중이라 지금은 삭제할 수 없어요. 끝난 뒤 다시 시도하세요.'
+    case 'AGENT_UNAVAILABLE': return 'AI 서비스에 잠시 연결할 수 없어요. 잠시 뒤 다시 시도하세요.'
+    default: return e.message
+  }
+}
+
 /**
  * S-03 심사 상세 (오른쪽 작업 패널). 처리 중 / 완료 / 실패 세 상태.
  * 위쪽 바: 목록 위치(n / N) + 위·아래 이동(↑↓ 또는 k·j).
@@ -27,8 +41,8 @@ const STAGE_TONE = { 1: 'danger', 2: 'warning', 3: 'caution' } as const
  */
 export function CheckDetailPage() {
   const { checkId } = useParams()
-  const { data, error, loading } = useOriginCheck(checkId)
-  const { filtered, reload, doneAt, setDone, view } = useChecks()
+  const { data, error, loading, refresh } = useOriginCheck(checkId)
+  const { filtered, reload, doneAt, setDone, view, patchLocal, removeLocal } = useChecks()
   const { panel, code, page, field, open, close, toggle } = usePanel()
   const navigate = useNavigate()
   const { search } = useLocation()
@@ -54,6 +68,52 @@ export function CheckDetailPage() {
     setDone(data.id, true)
     if (view === 'open') navigate(target ? `/checks/${target.id}${search}` : `/checks${keepListParams(search)}`)
   }
+
+  // 다시 실행 · 삭제. 처리 중에는 버튼을 막아 두 번 눌리지 않게 한다
+  const [acting, setActing] = useState<'retry' | 'delete' | null>(null)
+  const [actionError, setActionError] = useState<{ id: string | undefined; text: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const shownError = actionError && actionError.id === checkId ? actionError.text : null
+  const canDelete = data != null && data.status !== 'in_progress'
+
+  const retry = async () => {
+    if (!data || acting) return
+    const id = data.id
+    setActing('retry')
+    setActionError(null)
+    try {
+      const r = await originChecksApi.retry(id)
+      // 목록에서는 바로 '점검 중'으로, 상세는 다시 조회해 폴링을 시작한다
+      patchLocal(id, { status: r.status, decision: null, invoice_no: null, completed_at: null, done_at: null })
+    } catch (e) {
+      setActionError({ id: String(id), text: actionMessage(e) })
+    } finally {
+      setActing(null)
+      refresh()
+      reload()
+    }
+  }
+
+  const remove = async () => {
+    if (!data || acting) return
+    const id = data.id
+    setActing('delete')
+    setActionError(null)
+    try {
+      await originChecksApi.remove(id)
+      setConfirmDelete(false)
+      navigate(`/checks${keepListParams(search)}`)
+      removeLocal(id)
+    } catch (e) {
+      setConfirmDelete(false)
+      setActionError({ id: String(id), text: actionMessage(e) })
+      refresh()
+      reload()
+    } finally {
+      setActing(null)
+    }
+  }
+  const cancelDelete = useCallback(() => setConfirmDelete(false), [])
 
   // 처리 중 → 완료/실패가 되면 왼쪽 목록도 갱신
   const lastStatus = useRef<string | undefined>(undefined)
@@ -125,6 +185,18 @@ export function CheckDetailPage() {
                     {data.follow_up ? (FOLLOW_UP_TITLE[data.follow_up.kind] ?? '후속 문서').replace(' 초안', '') : '후속 문서'}
                   </PanelButton>
                   <CopyLinkButton />
+                  {canDelete && (
+                    <button
+                      type="button"
+                      className="btn-icon btn-ghost btn-sm"
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={acting != null}
+                      aria-label="삭제"
+                      title="삭제"
+                    >
+                      <IconTrash />
+                    </button>
+                  )}
                   {canDone && (
                     <button
                       type="button"
@@ -139,10 +211,12 @@ export function CheckDetailPage() {
                   )}
                 </div>
 
+                {shownError && <p className="action-error" role="alert"><IconAlert size={14} /> {shownError}</p>}
+
                 <DetailHeader detail={data} doneAt={doneTime} />
 
                 {isBusy(data) && <BusyState status={data.status} />}
-                {data.status === 'failed' && <FailedState detail={data} onRetry={openNew} />}
+                {data.status === 'failed' && <FailedState detail={data} retrying={acting === 'retry'} disabled={acting != null} onRetry={retry} onReupload={openNew} />}
                 {completed && <CompletedState detail={data} onOpen={open} />}
                 {(data.files?.length ?? 0) > 0 && <FileList detail={data} onOpenPage={(p) => open('pdf', { page: p })} />}
               </article>
@@ -159,6 +233,20 @@ export function CheckDetailPage() {
           }
         </SidePanel>
       </div>
+
+      {confirmDelete && data && (
+        <ConfirmDialog
+          title="이 심사를 삭제할까요?"
+          confirmLabel="삭제"
+          busyLabel="삭제하는 중…"
+          danger
+          busy={acting === 'delete'}
+          onConfirm={remove}
+          onCancel={cancelDelete}
+        >
+          <p><b>{displayName(data)}</b>의 점검 결과와 올린 원본 PDF가 모두 지워져요. 되돌릴 수 없어요.</p>
+        </ConfirmDialog>
+      )}
     </div>
   )
 }
@@ -446,14 +534,18 @@ function BusyState({ status }: { status: string }) {
   )
 }
 
-function FailedState({ detail, onRetry }: { detail: OriginCheckDetail; onRetry: () => void }) {
+function FailedState({ detail, retrying, disabled, onRetry, onReupload }: { detail: OriginCheckDetail; retrying: boolean; disabled: boolean; onRetry: () => void; onReupload: () => void }) {
   return (
     <section className="failed">
       <p className="failed-title"><IconAlert /> 점검을 마치지 못했습니다</p>
       <p>{detail.error?.message ?? '알 수 없는 오류가 났습니다.'}</p>
       {detail.error?.code && <code className="code-tag">{detail.error.code}</code>}
-      <div>
-        <button type="button" className="btn-sm btn-primary" onClick={onRetry}>다시 올리기</button>
+      <div className="failed-actions">
+        {/* 같은 파일로 다시 점검. 파일을 바꾸려면 새로 올린다 */}
+        <button type="button" className="btn-sm btn-primary" onClick={onRetry} disabled={disabled}>
+          <IconRefresh size={14} /> {retrying ? '다시 실행하는 중…' : '다시 실행'}
+        </button>
+        <button type="button" className="btn-sm" onClick={onReupload} disabled={disabled}>파일 다시 올리기</button>
       </div>
     </section>
   )

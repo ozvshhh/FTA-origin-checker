@@ -103,6 +103,10 @@ interface ChecksState {
   consumeIntent: () => void
   /** 방금 만든 심사를 목록에 바로 넣는다 (서버 목록을 다시 받기 전에 좌측에 보이게) */
   addLocal: (row: OriginCheckSummary) => void
+  /** 서버 응답을 기다리지 않고 목록의 한 건을 고친다 (다시 실행 → queued 등) */
+  patchLocal: (id: number, patch: Partial<OriginCheckSummary>) => void
+  /** 삭제한 건을 목록에서 뺀다 */
+  removeLocal: (id: number) => void
   /** 이 심사가 속한 보기 */
   viewOf: (c: OriginCheckSummary) => ListView
   /** 할 일 묶음 (검색 반영) */
@@ -210,6 +214,12 @@ export function ChecksProvider({ children }: { children: ReactNode }) {
     },
     [setParams],
   )
+  const patchLocal = useCallback((id: number, patch: Partial<OriginCheckSummary>) => {
+    setItems((prev) => prev && prev.map((c) => (c.id === id ? { ...c, ...patch } : c)))
+  }, [])
+  const removeLocal = useCallback((id: number) => {
+    setItems((prev) => prev && prev.filter((c) => c.id !== id))
+  }, [])
   const addLocal = useCallback((row: OriginCheckSummary) => {
     setItems((prev) => [row, ...(prev ?? []).filter((c) => c.id !== row.id)])
   }, [])
@@ -268,8 +278,8 @@ export function ChecksProvider({ children }: { children: ReactNode }) {
   const filtered = useMemo(() => groups.flatMap((g) => g.items), [groups])
 
   const value = useMemo(
-    () => ({ items, view, setView, viewCounts, doneAt, setDone, notice, userIntent, consumeIntent, addLocal, viewOf, groups, filtered, counts, error, truncated, tab, q, sort, result, setFilter, reload }),
-    [items, view, setView, viewCounts, doneAt, setDone, notice, userIntent, consumeIntent, addLocal, viewOf, groups, filtered, counts, error, truncated, tab, q, sort, result, setFilter, reload],
+    () => ({ items, view, setView, viewCounts, doneAt, setDone, notice, userIntent, consumeIntent, addLocal, patchLocal, removeLocal, viewOf, groups, filtered, counts, error, truncated, tab, q, sort, result, setFilter, reload }),
+    [items, view, setView, viewCounts, doneAt, setDone, notice, userIntent, consumeIntent, addLocal, patchLocal, removeLocal, viewOf, groups, filtered, counts, error, truncated, tab, q, sort, result, setFilter, reload],
   ) satisfies ChecksState
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
