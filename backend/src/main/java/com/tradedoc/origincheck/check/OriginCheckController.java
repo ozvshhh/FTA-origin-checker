@@ -77,6 +77,19 @@ public class OriginCheckController {
         return service.setDone(user.id(), id, false);
     }
 
+    /** 실패한 건 다시 실행(같은 파일). 접수 상태로 돌아가 202. 실패가 아니면 409 CHECK_NOT_FAILED */
+    @PostMapping("/{id}/retry")
+    public ResponseEntity<OriginCheckCreatedResponse> retry(@AuthenticationPrincipal AuthUser user, @PathVariable Long id) {
+        return ResponseEntity.accepted().body(service.retry(user.id(), id));
+    }
+
+    /** 점검 건 삭제(원본 파일 포함). AI 처리 중이면 409 CHECK_IN_PROGRESS */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal AuthUser user, @PathVariable Long id) {
+        service.delete(user.id(), id);
+        return ResponseEntity.noContent().build();
+    }
+
     /** 원본 PDF (화면의 PDF 뷰어·하이라이트용) */
     @GetMapping("/{id}/file")
     public ResponseEntity<Resource> file(@AuthenticationPrincipal AuthUser user, @PathVariable Long id) {

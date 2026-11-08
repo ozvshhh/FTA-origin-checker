@@ -93,6 +93,12 @@ class OriginCheckApiIntegrationTest {
     ObjectMapper mapper;
     @Autowired
     OriginCheckWorker worker;
+    @Autowired
+    com.tradedoc.origincheck.check.OriginCheckRepository checkRepo;
+    @Autowired
+    com.tradedoc.origincheck.check.OriginCheckFileRepository fileRepo;
+    @Autowired
+    com.tradedoc.origincheck.check.storage.FileStorage storage;
 
     private static byte[] pdf;
 
@@ -426,6 +432,118 @@ class OriginCheckApiIntegrationTest {
                 .andExpect(jsonPath("$.items[0].done_at").doesNotExist());
     }
 
+    // ---------- 다시 실행·삭제 ----------
+
+    @Test
+    void 실패한_건을_다시_실행하면_이전_agent_파일을_지우고_다시_제출해_완료() throws Exception {
+        String token = signup(uniqueEmail());
+        long id = createCheck(token);
+        worker.tick(); // 제출
+        String firstJob = AGENT.lastJobId;
+        AGENT.next = AgentPoll.failed("Upstage 작업이 failed 상태로 끝났습니다");
+        mvc.perform(auth(post("/api/v1/origin-checks/" + id + "/retry"), token))
+                .andExpect(status().isConflict()) // 처리 중에는 다시 실행할 수 없다
+                .andExpect(jsonPath("$.code").value("CHECK_NOT_FAILED"));
+        worker.tick(); // 실패로 끝나고 같은 주기에 agent 파일도 정리된다
+
+        mvc.perform(auth(post("/api/v1/origin-checks/" + id + "/retry"), token))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.status").value("queued"));
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(jsonPath("$.status").value("queued"))
+                .andExpect(jsonPath("$.error").doesNotExist());
+
+        AGENT.next = AgentPoll.running();
+        worker.tick(); // 다시 제출
+        assertThat(AGENT.deleted).contains("file_of_" + firstJob);
+        assertThat(AGENT.lastJobId).isNotEqualTo(firstJob);
+
+        AGENT.next = AgentPoll.completed(set04Result());
+        worker.tick();
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(jsonPath("$.status").value("completed"))
+                .andExpect(jsonPath("$.judge.decision").exists());
+
+        // 완료된 건도 다시 실행할 수 없다, 남의 건은 404
+        mvc.perform(auth(post("/api/v1/origin-checks/" + id + "/retry"), token))
+                .andExpect(status().isConflict());
+        mvc.perform(auth(post("/api/v1/origin-checks/" + id + "/retry"), signup(uniqueEmail())))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 삭제하면_원본_파일과_agent_파일까지_지우고_404() throws Exception {
+        String token = signup(uniqueEmail());
+        MvcResult r = mvc.perform(multipart("/api/v1/origin-checks")
+                        .file(pdfFile("a.pdf")).file(pdfFile("b.pdf"))
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isAccepted()).andReturn();
+        long id = body(r).get("id").asLong();
+        worker.tick();
+        AGENT.next = AgentPoll.completed(set04Result());
+        worker.tick(); // 완료(agent 파일도 정리됨)
+        java.util.List<Path> paths = new java.util.ArrayList<>();
+        paths.add(storage.path(checkRepo.findById(id).orElseThrow().getFileKey()));
+        fileRepo.findByCheckIdOrderBySeqAsc(id).forEach(f -> paths.add(storage.path(f.getFileKey())));
+        assertThat(paths).hasSize(3).allMatch(Files::exists);
+
+        // 남의 건은 404, 지워지지 않는다
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id), signup(uniqueEmail())))
+                .andExpect(status().isNotFound());
+
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isNotFound());
+        assertThat(fileRepo.findByCheckIdOrderBySeqAsc(id)).isEmpty();
+        assertThat(paths).noneMatch(Files::exists);
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void 처리_중인_건은_삭제할_수_없고_agent_파일을_못_지우면_502로_그대로_둔다() throws Exception {
+        String token = signup(uniqueEmail());
+        long id = createCheck(token);
+        worker.tick(); // in_progress
+
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CHECK_IN_PROGRESS"));
+
+        AGENT.next = AgentPoll.failed("x");
+        AGENT.deleteError = new AgentException("Upstage 파일 삭제 실패 (HTTP 500)");
+        worker.tick(); // 실패로 끝남, agent 파일 정리도 실패해 남아 있다
+        worker.tick();
+
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("AGENT_UNAVAILABLE"));
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isOk());
+
+        AGENT.deleteError = null;
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void 접수_대기_중인_건은_삭제할_수_있다() throws Exception {
+        String token = signup(uniqueEmail());
+        long id = createCheck(token);
+        Path file = storage.path(checkRepo.findById(id).orElseThrow().getFileKey());
+
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id), token))
+                .andExpect(status().isNoContent());
+        worker.tick();
+        // 다른 테스트가 남긴 접수 건은 제출될 수 있으니 이 건의 파일로 제출됐는지만 본다
+        assertThat(AGENT.lastSubmittedPath).isNotEqualTo(file);
+        assertThat(checkRepo.findById(id)).isEmpty();
+        assertThat(file).doesNotExist();
+    }
+
     // ---------- 목록·권한 ----------
 
     @Test
@@ -541,8 +659,10 @@ class OriginCheckApiIntegrationTest {
         volatile Path lastSubmittedPath;
         volatile String lastSubmittedName;
         volatile String lastJobId;
+        volatile RuntimeException deleteError;
 
         void reset() {
+            deleteError = null;
             next = AgentPoll.running();
             submitError = null;
             lastSubmittedPath = null;
@@ -565,6 +685,9 @@ class OriginCheckApiIntegrationTest {
 
         @Override
         public void deleteFile(String fileId) {
+            if (deleteError != null) {
+                throw deleteError;
+            }
             deleted.add(fileId);
         }
 

@@ -1,5 +1,7 @@
 package com.tradedoc.origincheck.check;
 
+import com.tradedoc.origincheck.agent.AgentException;
+import com.tradedoc.origincheck.agent.CheckAgent;
 import com.tradedoc.origincheck.agent.dto.AgentCheckResult;
 import com.tradedoc.origincheck.check.dto.OriginCheckCreatedResponse;
 import com.tradedoc.origincheck.check.dto.OriginCheckResponse;
@@ -15,6 +17,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.ObjectMapper;
 
@@ -24,12 +28,15 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 
 @Service
 public class OriginCheckService {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OriginCheckService.class);
 
     private static final Set<String> PDF_TYPES = Set.of("application/pdf", "application/octet-stream");
     private static final byte[] PDF_MAGIC = {'%', 'P', 'D', 'F'};
@@ -43,14 +50,16 @@ public class OriginCheckService {
     private final FileStorage storage;
     private final PdfBundler pdf;
     private final ObjectMapper objectMapper;
+    private final CheckAgent agent;
 
     public OriginCheckService(OriginCheckRepository checks, OriginCheckFileRepository checkFiles, FileStorage storage,
-                              PdfBundler pdf, ObjectMapper objectMapper) {
+                              PdfBundler pdf, ObjectMapper objectMapper, CheckAgent agent) {
         this.checks = checks;
         this.checkFiles = checkFiles;
         this.storage = storage;
         this.pdf = pdf;
         this.objectMapper = objectMapper;
+        this.agent = agent;
     }
 
     /**
@@ -173,6 +182,57 @@ public class OriginCheckService {
             c.reopen();
         }
         return OriginCheckSummaryResponse.from(c);
+    }
+
+    /**
+     * 실패한 건을 같은 파일로 다시 실행한다. 접수 상태로 돌아가고 워커가 다시 제출한다.
+     * 실패(failed)가 아니면 409 CHECK_NOT_FAILED.
+     */
+    @Transactional
+    public OriginCheckCreatedResponse retry(Long userId, Long id) {
+        OriginCheck c = find(userId, id);
+        if (c.getStatus() != CheckStatus.FAILED) {
+            throw new ApiException(ErrorCode.CHECK_NOT_FAILED);
+        }
+        c.resetForRetry();
+        return new OriginCheckCreatedResponse(c.getId(), c.getStatus());
+    }
+
+    /**
+     * 점검 건 삭제: DB 행(원본 파일 목록은 FK CASCADE), 저장소의 원본·합친 PDF, agent 쪽 파일.
+     * AI 가 처리 중(in_progress)이면 409 CHECK_IN_PROGRESS. agent 쪽 파일을 못 지우면 502 AGENT_UNAVAILABLE(아무것도 지우지 않음).
+     */
+    @Transactional
+    public void delete(Long userId, Long id) {
+        OriginCheck c = find(userId, id);
+        if (c.getStatus() == CheckStatus.IN_PROGRESS) {
+            throw new ApiException(ErrorCode.CHECK_IN_PROGRESS);
+        }
+        if (c.getAgentFileId() != null) {
+            try {
+                agent.deleteFile(c.getAgentFileId());
+            } catch (AgentException e) {
+                log.warn("점검 #{} 삭제 중 agent 파일 {} 삭제 실패: {}", id, c.getAgentFileId(), e.getMessage());
+                throw new ApiException(ErrorCode.AGENT_UNAVAILABLE);
+            }
+        }
+        Set<String> keys = new LinkedHashSet<>();
+        keys.add(c.getFileKey());
+        checkFiles.findByCheckIdOrderBySeqAsc(id).forEach(f -> keys.add(f.getFileKey()));
+        checks.delete(c);
+        // 저장소 파일은 DB 삭제가 확정된 뒤에 지운다(롤백되면 파일이 남아 있어야 한다)
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                for (String key : keys) {
+                    try {
+                        storage.delete(key);
+                    } catch (RuntimeException e) {
+                        log.warn("점검 #{} 원본 파일 {} 삭제 실패: {}", id, key, e.getMessage());
+                    }
+                }
+            }
+        });
     }
 
     @Transactional(readOnly = true)

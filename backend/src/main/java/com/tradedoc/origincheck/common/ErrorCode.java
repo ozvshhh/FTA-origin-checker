@@ -15,6 +15,9 @@ public enum ErrorCode {
     NOT_FOUND(HttpStatus.NOT_FOUND, "대상을 찾을 수 없습니다."),
     ORIGIN_CHECK_NOT_FOUND(HttpStatus.NOT_FOUND, "점검 건을 찾을 수 없습니다."),
     CHECK_NOT_FINISHED(HttpStatus.CONFLICT, "처리 중인 점검 건은 완료 처리할 수 없습니다."),
+    CHECK_NOT_FAILED(HttpStatus.CONFLICT, "실패한 점검 건만 다시 실행할 수 있습니다."),
+    CHECK_IN_PROGRESS(HttpStatus.CONFLICT, "AI 가 처리 중인 점검 건은 삭제할 수 없습니다. 끝난 뒤 다시 시도하세요."),
+    AGENT_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "AI agent 쪽 파일을 지우지 못했습니다. 잠시 뒤 다시 시도하세요."),
     AUTH_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "서버 인증 설정(JWT_SECRET)이 없습니다."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다.");
 

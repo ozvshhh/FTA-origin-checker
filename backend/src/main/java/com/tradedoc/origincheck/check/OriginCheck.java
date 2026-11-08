@@ -161,6 +161,25 @@ public class OriginCheck {
         doneAt = null;
     }
 
+    /**
+     * 실패한 건을 다시 실행한다: 접수(QUEUED) 상태로 되돌리고 이전 작업·결과·오류를 지운다.
+     * agent 쪽 파일(agentFileId)은 그대로 둔다 → 워커가 먼저 지운 뒤 다시 제출한다.
+     */
+    public void resetForRetry() {
+        this.status = CheckStatus.QUEUED;
+        this.agentJobId = null;
+        this.resultJson = null;
+        this.decision = null;
+        this.invoiceNo = null;
+        this.errorCode = null;
+        this.errorMessage = null;
+        this.submittedAt = null;
+        this.completedAt = null;
+        this.doneAt = null;
+        this.submitAttempts = 0;
+        this.nextSubmitAt = Instant.now();
+    }
+
     /** 제출이 일시적 오류로 실패했다. QUEUED 로 두고 {@code next} 이후에 다시 제출한다 */
     public void deferSubmit(Instant next) {
         this.submitAttempts++;

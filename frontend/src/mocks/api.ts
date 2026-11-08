@@ -8,6 +8,7 @@
  * - 원본 PDF: set04.pdf
  * - 새 심사: 대기 → 처리 중(4초) → 완료(12초)로 넘어감 (폴링 확인용)
  * - 완료 처리: PUT/DELETE …/done (처리 중인 건은 409)
+ * - 다시 실행: POST …/retry (실패 건만), 삭제: DELETE …/{id} (처리 중이면 409)
  * 데이터는 메모리에만 있어서 새로고침하면 처음 상태로 돌아간다.
  */
 import type { CheckFile, CheckStatus, Decision, OriginCheckDetail, OriginCheckSummary } from '../api/types'
@@ -185,6 +186,32 @@ export async function mockFetch(path: string, init: RequestInit = {}): Promise<R
     }
     const { error: _e, files: _f, ...summary } = row
     return json(summary)
+  }
+
+  const retryMatch = p.match(/^\/api\/v1\/origin-checks\/(\d+)\/retry$/)
+  if (retryMatch && method === 'POST') {
+    const row = rows.find((r) => r.id === Number(retryMatch[1]))
+    if (!row) return notFound(p)
+    if (row.status !== 'failed') {
+      return json({ code: 'CHECK_NOT_FAILED', message: '실패한 점검 건만 다시 실행할 수 있습니다.', path: p, timestamp: new Date().toISOString() }, 409)
+    }
+    Object.assign(row, { status: 'queued', error: null, decision: null, invoice_no: null, completed_at: null, done_at: null })
+    setTimeout(() => { row.status = 'in_progress' }, 4_000)
+    setTimeout(() => {
+      Object.assign(row, { status: 'completed', decision: '보완 요청', invoice_no: 'SM-2609-0044', completed_at: new Date().toISOString() })
+    }, 12_000)
+    return json({ id: row.id, status: row.status }, 202)
+  }
+
+  const deleteMatch = p.match(/^\/api\/v1\/origin-checks\/(\d+)$/)
+  if (deleteMatch && method === 'DELETE') {
+    const i = rows.findIndex((r) => r.id === Number(deleteMatch[1]))
+    if (i < 0) return notFound(p)
+    if (rows[i].status === 'in_progress') {
+      return json({ code: 'CHECK_IN_PROGRESS', message: 'AI 가 처리 중인 점검 건은 삭제할 수 없습니다. 끝난 뒤 다시 시도하세요.', path: p, timestamp: new Date().toISOString() }, 409)
+    }
+    rows.splice(i, 1)
+    return new Response(null, { status: 204 })
   }
 
   const fileMatch = p.match(/^\/api\/v1\/origin-checks\/(\d+)\/file$/)

@@ -289,6 +289,25 @@ class OriginCheckWorkerTest {
     }
 
     @Test
+    void 다시_실행한_건은_이전_agent_파일을_먼저_지우고_다음_주기에_제출한다() {
+        OriginCheck c = inProgress(1L, Instant.now());
+        c.markFailed("AGENT_FAILED", "x");
+        c.resetForRetry();
+        agent.deleteError = new AgentException("Upstage 파일 삭제 실패 (HTTP 500)");
+
+        worker.tick(); // 삭제 실패 → 제출하지 않는다
+        assertThat(agent.submitCalls).isZero();
+        assertThat(c.getAgentFileId()).isEqualTo("file_1");
+
+        agent.deleteError = null;
+        worker.tick(); // 삭제
+        assertThat(agent.deleted).containsExactly("file_1");
+        worker.tick(); // 제출
+        assertThat(c.getStatus()).isEqualTo(CheckStatus.IN_PROGRESS);
+        assertThat(agent.submitCalls).isEqualTo(1);
+    }
+
+    @Test
     void 올린_파일이_없으면_지우지_않는다() {
         OriginCheck c = queued(1L);
         agent.fileIds = false; // fake 모드처럼 파일 ID 가 없다

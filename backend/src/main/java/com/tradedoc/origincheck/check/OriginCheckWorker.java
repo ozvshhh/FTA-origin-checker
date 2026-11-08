@@ -60,7 +60,8 @@ public class OriginCheckWorker {
         checks.findTop20ByStatusInAndAgentFileIdIsNotNullOrderByIdAsc(FINISHED).forEach(c -> safely(c, this::cleanup));
     }
 
-    private static final List<CheckStatus> FINISHED = List.of(CheckStatus.COMPLETED, CheckStatus.FAILED);
+    /** agent 쪽 파일을 지울 상태. QUEUED 는 다시 실행한 건이 이전 파일을 아직 갖고 있는 경우 */
+    private static final List<CheckStatus> FINISHED = List.of(CheckStatus.COMPLETED, CheckStatus.FAILED, CheckStatus.QUEUED);
 
     /** 끝난 건의 agent 쪽 파일을 지운다. 실패하면 다음 주기에 다시 한다(원본 PDF 는 우리 저장소에 남아 있다). */
     void cleanup(OriginCheck c) {
@@ -83,6 +84,9 @@ public class OriginCheckWorker {
     }
 
     void submit(OriginCheck c) {
+        if (c.getAgentFileId() != null) {
+            return; // 다시 실행한 건: 이전 agent 파일을 cleanup 이 지운 뒤에 제출한다(덮어쓰면 파일이 남는다)
+        }
         try {
             AgentSubmission sub = agent.submit(storage.path(c.getFileKey()), c.getFileName());
             update(c.getId(), x -> x.markSubmitted(sub.jobId(), sub.fileId()));

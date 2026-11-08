@@ -47,6 +47,8 @@
 | `GET` | `/api/v1/origin-checks/{id}/file` | O | 원본 PDF (PDF 뷰어·하이라이트용) |
 | `PUT` | `/api/v1/origin-checks/{id}/done` | O | 담당자 완료 처리 (진행 중 목록에서 뺀다) |
 | `DELETE` | `/api/v1/origin-checks/{id}/done` | O | 완료 처리 되돌리기 |
+| `POST` | `/api/v1/origin-checks/{id}/retry` | O | 실패한 건 다시 실행 (같은 파일) |
+| `DELETE` | `/api/v1/origin-checks/{id}` | O | 점검 건 삭제 (원본 파일 포함) |
 | `GET` | `/api/v1/health` | - | `{"ok": true}` |
 
 ### 2.1 인증 (JWT)
@@ -184,6 +186,23 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 
 오류: 404 `ORIGIN_CHECK_NOT_FOUND` (없거나 남의 건), 409 `CHECK_NOT_FINISHED` (`queued`·`in_progress` 인 건을 완료 처리하려 함)
 
+### 2.5-2 `POST /api/v1/origin-checks/{id}/retry` — 실패한 건 다시 실행
+
+`failed` 인 건을 같은 파일로 다시 점검한다. 파일을 다시 올릴 필요가 없다.
+
+- 응답 `202` `{ "id": 42, "status": "queued" }` — 접수(§2.2)와 같은 모양. 이후 상세를 다시 폴링한다
+- 이전 결과·오류·`done_at` 은 지워지고, 제출 재시도 횟수도 처음부터 센다
+- 오류: 404 `ORIGIN_CHECK_NOT_FOUND`, 409 `CHECK_NOT_FAILED` (`failed` 가 아닌 건)
+
+### 2.5-3 `DELETE /api/v1/origin-checks/{id}` — 점검 건 삭제
+
+점검 건과 올린 원본 파일·합친 PDF, Upstage 쪽에 남은 파일까지 지운다. 되돌릴 수 없다.
+
+- 응답 `204` (본문 없음)
+- `queued`·`completed`·`failed` 는 지울 수 있다. `in_progress`(AI 가 처리 중)는 409 `CHECK_IN_PROGRESS` — 끝난 뒤 다시 시도
+- Upstage 쪽 파일을 못 지우면 502 `AGENT_UNAVAILABLE` 이고 아무것도 지우지 않는다(잠시 뒤 다시 시도)
+- 오류: 404 `ORIGIN_CHECK_NOT_FOUND`
+
 ### 2.6 오류 코드
 
 모든 오류 본문은 `ErrorResponse` `{code, message, path, timestamp}` (§4.8).
@@ -198,16 +217,19 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 | 404 | `ORIGIN_CHECK_NOT_FOUND` · `NOT_FOUND` | 점검 건 없음 · 경로 없음 |
 | 409 | `EMAIL_ALREADY_EXISTS` | 가입된 이메일 |
 | 409 | `CHECK_NOT_FINISHED` | 처리 중인 점검 건을 완료 처리하려 함 |
+| 409 | `CHECK_NOT_FAILED` | 실패가 아닌 건을 다시 실행하려 함 |
+| 409 | `CHECK_IN_PROGRESS` | AI 가 처리 중인 건을 삭제하려 함 |
 | 413 | `FILE_TOO_LARGE` | 합계 100MB 초과 |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | PDF 가 아닌 Content-Type |
 | 500 | `INTERNAL_ERROR` | 서버 오류 |
+| 502 | `AGENT_UNAVAILABLE` | 삭제 중 Upstage 쪽 파일을 지우지 못함 |
 | 503 | `AUTH_NOT_CONFIGURED` | 서버에 `JWT_SECRET` 이 없음 |
 
 agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 `error.code` 로 알려 준다.
 
 | `error.code` | 언제 |
 |---|---|
-| `AGENT_ERROR` | agent 제출 실패. 4xx 는 바로, 일시적 오류(네트워크·5xx·429)는 재시도를 다 써도 안 될 때 |
+| `AGENT_ERROR` | agent 호출 실패. 제출: 4xx 는 바로, 일시적 오류(네트워크·5xx·429)는 재시도를 다 써도 안 될 때. 결과 조회: 4xx(작업 없음·권한 없음)면 바로 (일시적 오류는 시간 초과까지 계속 조회) |
 | `AGENT_FAILED` | agent 작업이 failed·cancelled·incomplete 로 끝남 |
 | `AGENT_TIMEOUT` | 제출 후 `AGENT_TIMEOUT`(기본 30분) 안에 안 끝남 |
 | `RESULT_PARSE_ERROR` | agent 응답을 결과 형식으로 바꾸지 못함 |

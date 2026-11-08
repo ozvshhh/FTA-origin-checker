@@ -36,6 +36,12 @@ export const originChecksApi = {
   markDone: (id: number) => apiFetch<OriginCheckSummary>(`/api/v1/origin-checks/${id}/done`, { method: 'PUT' }),
   reopen: (id: number) => apiFetch<OriginCheckSummary>(`/api/v1/origin-checks/${id}/done`, { method: 'DELETE' }),
 
+  /** 실패한 건 다시 실행(같은 파일). 202 {id, status: 'queued'} → 다시 get() 폴링. 실패가 아니면 409 CHECK_NOT_FAILED */
+  retry: (id: number) => apiFetch<OriginCheckCreatedResponse>(`/api/v1/origin-checks/${id}/retry`, { method: 'POST' }),
+
+  /** 삭제(원본 파일 포함, 되돌릴 수 없음). 204. 처리 중이면 409 CHECK_IN_PROGRESS */
+  remove: (id: number) => apiFetch<void>(`/api/v1/origin-checks/${id}`, { method: 'DELETE' }),
+
   get: (id: number | string) => apiFetch<OriginCheckDetail>(`/api/v1/origin-checks/${id}`),
 
   /** 원본 PDF. 인증 헤더가 필요해서 Blob 으로 받아 object URL 로 넘긴다. */

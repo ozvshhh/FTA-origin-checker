@@ -11,4 +11,7 @@ public interface FileStorage {
 
     /** agent 에 올리거나 내려줄 때 쓰는 로컬 경로 */
     Path path(String key);
+
+    /** 저장된 파일 삭제. 없으면 아무 일도 하지 않는다 */
+    void delete(String key);
 }
