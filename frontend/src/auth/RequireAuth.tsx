@@ -5,7 +5,7 @@ import { useAuth } from './useAuth'
 export function RequireAuth() {
   const { user, loading } = useAuth()
   const location = useLocation()
-  if (loading) return <p className="muted">불러오는 중…</p>
+  if (loading) return <div className="app-loading" aria-busy="true"><span className="status-ring tone-info is-busy" /></div>
   if (!user) return <Navigate to="/" replace state={{ from: location.pathname }} />
   return <Outlet />
 }

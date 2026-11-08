@@ -58,6 +58,7 @@ export interface OriginCheckCreatedResponse {
 
 export interface OriginCheckSummary {
   id: number
+  /** 관리번호·메모 (사용자가 넣은 값, 비우면 파일명) */
   title: string
   file_name: string
   status: CheckStatus
@@ -65,6 +66,27 @@ export interface OriginCheckSummary {
   invoice_no: string | null
   created_at: string
   completed_at: string | null
+  /** 담당자 완료 처리 시각. null 이면 진행 중 (PUT/DELETE /origin-checks/{id}/done) */
+  done_at?: string | null
+
+  // ↓ [백엔드 추가 요청] 목록에서 "어느 건인지 · 뭐가 문제인지 · 언제 선적했는지"를 바로 보기 위한 요약 필드.
+  //   아직 실제 응답에는 없다(가짜 API 에만 있음). 없으면 화면은 제목·파일명·판정으로 대신 보여 준다.
+  /** 판정 결과의 불일치 코드 (judge.mismatch_codes) */
+  mismatch_codes?: string[]
+  /** 판정 결과의 누락 서류 (judge.missing_documents) */
+  missing_documents?: string[]
+  /** 바이어 (인보이스 consignee) */
+  consignee?: string | null
+  /** 대표 품목: 인보이스 첫 품목 품명 */
+  primary_item?: string | null
+  /** 인보이스 품목 수 (대표 품목 외 n건 표시용) */
+  item_count?: number | null
+  /** 목적국, 한글 표기 (수출신고필증 destination_country 또는 원산지증명서 importing_country) */
+  destination_country?: string | null
+  /** 적용 협정 (예: 한-아세안) */
+  agreement?: string | null
+  /** 선적일 YYYY-MM-DD (B/L laden_on_board_date, 없으면 원산지증명서 departure_date) */
+  shipped_on?: string | null
 }
 
 export interface CheckError {
@@ -73,6 +95,15 @@ export interface CheckError {
 }
 
 /** GET /api/v1/origin-checks/{id}. completed 전에는 judge·follow_up 이 null, 목록은 비어 있다. */
+/** 상세 응답의 원본 파일 하나. page_from~page_to = 원본 PDF(이어 붙인 PDF)에서의 쪽 (1부터) */
+export interface CheckFile {
+  name: string
+  size: number
+  page_from: number
+  page_to: number
+  hint_type: string | null
+}
+
 export interface OriginCheckDetail {
   id: number
   title: string
@@ -80,6 +111,9 @@ export interface OriginCheckDetail {
   status: CheckStatus
   created_at: string
   completed_at: string | null
+  done_at?: string | null
+  /** 올린 원본 파일들 (올린 순서). 여러 파일 접수 전에 만든 건은 빈 배열 */
+  files?: CheckFile[]
   job_id: string | null
   judge: AgentJudge | null
   mismatches: AgentMismatch[]

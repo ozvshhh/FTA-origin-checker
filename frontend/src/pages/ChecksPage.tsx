@@ -1,103 +1,50 @@
-import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ApiError } from '../api/client'
-import { originChecksApi } from '../api/originChecks'
-import type { OriginCheckSummary, PageResponse } from '../api/types'
-import { StatusBadge } from '../components/StatusBadge'
+import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
+import { GROUPS, useChecks } from '../checks/ChecksContext'
+import { keepListParams } from '../components/CheckSidebar'
+import { IconInbox, IconPlus } from '../components/icons'
 
-/** S-02 심사목록 + M-03 새 심사 만들기. 필터·검색·탭은 화면명세서 §3 에 맞춰 채운다. */
+/** /checks — 아직 심사를 고르지 않았을 때 오른쪽 패널. 진행 중 건수를 왼쪽 목록과 같은 묶음·순서로 + 심사 생성 */
 export function ChecksPage() {
-  const [page, setPage] = useState(0)
-  const [data, setData] = useState<PageResponse<OriginCheckSummary> | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [showNew, setShowNew] = useState(false)
-
-  useEffect(() => {
-    originChecksApi
-      .list({ page, size: 20 })
-      .then(setData)
-      .catch((e) => setError(e instanceof ApiError ? e.message : '목록을 불러오지 못했습니다.'))
-  }, [page])
-
-  return (
-    <>
-      <div className="page-head">
-        <h1>심사목록</h1>
-        <button type="button" onClick={() => setShowNew(true)}>+ 새 심사</button>
-      </div>
-
-      {error && <p className="error">{error}</p>}
-      {data && data.items.length === 0 && <p className="muted">아직 심사가 없습니다. 서류 PDF를 올려 시작하세요.</p>}
-      {data && data.items.length > 0 && (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>제목</th>
-              <th>송장번호</th>
-              <th>상태</th>
-              <th>등록일</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((c) => (
-              <tr key={c.id}>
-                <td><Link to={`/checks/${c.id}`}>{c.title}</Link></td>
-                <td>{c.invoice_no ?? '-'}</td>
-                <td><StatusBadge status={c.status} decision={c.decision} /></td>
-                <td>{new Date(c.created_at).toLocaleString()}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      {data && data.total_pages > 1 && (
-        <div className="pager">
-          <button type="button" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>이전</button>
-          <span>{page + 1} / {data.total_pages}</span>
-          <button type="button" disabled={page + 1 >= data.total_pages} onClick={() => setPage((p) => p + 1)}>다음</button>
-        </div>
-      )}
-
-      {showNew && <NewCheckModal onClose={() => setShowNew(false)} />}
-    </>
-  )
-}
-
-function NewCheckModal({ onClose }: { onClose: () => void }) {
+  const { items, viewOf, groups, view, sort } = useChecks()
   const navigate = useNavigate()
-  const [error, setError] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const { search } = useLocation()
+  const open = (items ?? []).filter((c) => viewOf(c) === 'open')
 
-  const submit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const f = new FormData(e.currentTarget)
-    const file = f.get('file')
-    if (!(file instanceof File) || file.size === 0) {
-      setError('PDF 파일을 선택하세요.')
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      const created = await originChecksApi.create(file, String(f.get('title') ?? '') || undefined)
-      navigate(`/checks/${created.id}`) // 상세 화면에서 처리 중 → 완료를 기다린다
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : '업로드하지 못했습니다.')
-      setBusy(false)
-    }
+  // 카드를 누르면 그 묶음의 첫 건을 연다. via: 'step' → 왼쪽 목록이 그 묶음을 펼친다
+  const openGroup = (key: string) => {
+    const shown = view === 'open' ? groups.find((g) => g.key === key)?.items : null
+    const list = shown ?? open.filter(GROUPS.find((g) => g.key === key)!.match)
+      .sort((a, b) => (sort === 'latest' ? -1 : 1) * a.created_at.localeCompare(b.created_at))
+    const first = list[0]
+    if (!first) return
+    const p = new URLSearchParams(keepListParams(search))
+    p.delete('view')
+    p.delete('result')
+    const qs = p.toString()
+    navigate(`/checks/${first.id}${qs ? `?${qs}` : ''}`, { state: { via: 'step' } })
   }
+  const { openNew } = useOutletContext<{ openNew: () => void }>()
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={submit} className="form">
-          <h2>새 심사 만들기</h2>
-          <input name="title" placeholder="심사 제목 (비우면 파일명)" maxLength={200} autoFocus />
-          <input name="file" type="file" accept="application/pdf" required />
-          <p className="muted">한 선적 건의 서류(인보이스·패킹리스트·B/L·원산지증명서·원산지확인서·수출신고필증)를 이어 붙인 PDF, 최대 50MB</p>
-          {error && <p className="error">{error}</p>}
-          <button type="submit" disabled={busy}>{busy ? '올리는 중…' : '점검 시작'}</button>
-        </form>
+    <div className="detail">
+      <div className="home">
+        <span className="home-icon"><IconInbox size={24} /></span>
+        <h1>왼쪽에서 심사를 고르세요</h1>
+        <button type="button" className="btn-primary" onClick={openNew}><IconPlus /> 심사 생성</button>
+
+        {items != null && items.length > 0 && (
+          <div className="home-cards">
+            {GROUPS.map((g) => {
+              const n = open.filter(g.match).length
+              return (
+                <button key={g.key} type="button" className="home-card" disabled={n === 0} onClick={() => openGroup(g.key)}>
+                  <span className="home-card-label"><span className={`dot tone-${g.tone}`} />{g.label}</span>
+                  <span className="home-card-num num">{n}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )

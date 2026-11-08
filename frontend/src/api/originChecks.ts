@@ -9,9 +9,16 @@ import type {
 
 export const originChecksApi = {
   /** 서류 묶음 PDF 접수. 결과는 get() 으로 조회한다(처리에 수 분 걸림). */
-  create: (file: File, title?: string) => {
+  /**
+   * 한 선적 건의 PDF 들을 접수. 여러 개면 서버가 올린 순서대로 이어 붙여 점검한다.
+   * hints = 파일과 같은 순서의 서류 종류 짐작(파일명 기준, 없으면 빈 문자열). 판정에는 쓰이지 않는다.
+   */
+  create: (files: File[], title?: string, hints?: (string | null)[]) => {
     const form = new FormData()
-    form.append('file', file)
+    files.forEach((f, i) => {
+      form.append('file', f)
+      form.append('hint', hints?.[i] ?? '')
+    })
     if (title) form.append('title', title)
     return apiFetch<OriginCheckCreatedResponse>('/api/v1/origin-checks', { method: 'POST', body: form })
   },
@@ -24,6 +31,10 @@ export const originChecksApi = {
     const qs = q.toString()
     return apiFetch<PageResponse<OriginCheckSummary>>(`/api/v1/origin-checks${qs ? `?${qs}` : ''}`)
   },
+
+  /** 담당자 완료 처리 / 되돌리기. 처리 중인 건은 409 CHECK_NOT_FINISHED */
+  markDone: (id: number) => apiFetch<OriginCheckSummary>(`/api/v1/origin-checks/${id}/done`, { method: 'PUT' }),
+  reopen: (id: number) => apiFetch<OriginCheckSummary>(`/api/v1/origin-checks/${id}/done`, { method: 'DELETE' }),
 
   get: (id: number | string) => apiFetch<OriginCheckDetail>(`/api/v1/origin-checks/${id}`),
 
