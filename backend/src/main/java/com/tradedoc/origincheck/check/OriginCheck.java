@@ -15,6 +15,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 /**
  * 원산지 점검 1건(화면의 "심사"). 원본 PDF 는 파일 저장소에, agent 결과 전체는 result_json 에 둔다.
@@ -111,21 +112,21 @@ public class OriginCheck {
 
     @PrePersist
     void prePersist() {
-        createdAt = Instant.now();
+        createdAt = now();
         updatedAt = createdAt;
         nextSubmitAt = createdAt;
     }
 
     @PreUpdate
     void preUpdate() {
-        updatedAt = Instant.now();
+        updatedAt = now();
     }
 
     public void markSubmitted(String agentJobId, String agentFileId) {
         this.agentJobId = agentJobId;
         this.agentFileId = agentFileId;
         this.status = CheckStatus.IN_PROGRESS;
-        this.submittedAt = Instant.now();
+        this.submittedAt = now();
     }
 
     public void markCompleted(String resultJson, Decision decision, String invoiceNo) {
@@ -133,7 +134,7 @@ public class OriginCheck {
         this.decision = decision;
         this.invoiceNo = invoiceNo;
         this.status = CheckStatus.COMPLETED;
-        this.completedAt = Instant.now();
+        this.completedAt = now();
     }
 
     public void markFailed(String errorCode, String errorMessage) {
@@ -141,7 +142,7 @@ public class OriginCheck {
         this.errorMessage = errorMessage == null || errorMessage.length() <= 1000
                 ? errorMessage : errorMessage.substring(0, 1000);
         this.status = CheckStatus.FAILED;
-        this.completedAt = Instant.now();
+        this.completedAt = now();
     }
 
     /** 처리(agent)가 끝난 건인가. 처리 중인 건은 완료 처리할 수 없다 */
@@ -152,7 +153,7 @@ public class OriginCheck {
     /** 담당자 완료 처리. 이미 완료면 처음 시각을 유지한다 */
     public void markDone() {
         if (doneAt == null) {
-            doneAt = Instant.now();
+            doneAt = now();
         }
     }
 
@@ -177,7 +178,7 @@ public class OriginCheck {
         this.completedAt = null;
         this.doneAt = null;
         this.submitAttempts = 0;
-        this.nextSubmitAt = Instant.now();
+        this.nextSubmitAt = now();
     }
 
     /** 제출이 일시적 오류로 실패했다. QUEUED 로 두고 {@code next} 이후에 다시 제출한다 */
@@ -269,5 +270,10 @@ public class OriginCheck {
 
     public Instant getDoneAt() {
         return doneAt;
+    }
+
+    /** DB(DATETIME(6))에 저장되는 정밀도(마이크로초)에 맞춘 지금 시각. 리눅스 JVM 은 나노초까지 주므로 응답 값과 다시 읽은 값이 달라진다 */
+    private static Instant now() {
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 }

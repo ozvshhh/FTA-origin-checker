@@ -9,6 +9,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Entity
 @Table(name = "users")
@@ -45,7 +46,7 @@ public class User {
 
     @PrePersist
     void prePersist() {
-        createdAt = Instant.now();
+        createdAt = now();
     }
 
     public Long getId() {
@@ -70,5 +71,10 @@ public class User {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    /** DB(DATETIME(6))에 저장되는 정밀도(마이크로초)에 맞춘 지금 시각. 리눅스 JVM 은 나노초까지 주므로 응답 값과 다시 읽은 값이 달라진다 */
+    private static Instant now() {
+        return Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 }
