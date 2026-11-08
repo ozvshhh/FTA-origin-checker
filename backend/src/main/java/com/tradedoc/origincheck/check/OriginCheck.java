@@ -55,6 +55,14 @@ public class OriginCheck {
     @Column(name = "agent_file_id", length = 100)
     private String agentFileId;
 
+    /** 일시적 오류로 실패한 제출 시도 수 */
+    @Column(name = "submit_attempts", nullable = false)
+    private int submitAttempts;
+
+    /** QUEUED 인 건은 이 시각 이후에 제출한다(재시도 대기) */
+    @Column(name = "next_submit_at")
+    private Instant nextSubmitAt;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 30)
@@ -101,6 +109,7 @@ public class OriginCheck {
     void prePersist() {
         createdAt = Instant.now();
         updatedAt = createdAt;
+        nextSubmitAt = createdAt;
     }
 
     @PreUpdate
@@ -129,6 +138,20 @@ public class OriginCheck {
                 ? errorMessage : errorMessage.substring(0, 1000);
         this.status = CheckStatus.FAILED;
         this.completedAt = Instant.now();
+    }
+
+    /** 제출이 일시적 오류로 실패했다. QUEUED 로 두고 {@code next} 이후에 다시 제출한다 */
+    public void deferSubmit(Instant next) {
+        this.submitAttempts++;
+        this.nextSubmitAt = next;
+    }
+
+    public int getSubmitAttempts() {
+        return submitAttempts;
+    }
+
+    public Instant getNextSubmitAt() {
+        return nextSubmitAt;
     }
 
     /** agent 쪽 파일을 지웠다 */

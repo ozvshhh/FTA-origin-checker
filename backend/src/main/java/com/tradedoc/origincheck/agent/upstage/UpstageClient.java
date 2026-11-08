@@ -3,7 +3,6 @@ package com.tradedoc.origincheck.agent.upstage;
 import com.tradedoc.origincheck.agent.AgentException;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -15,7 +14,6 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.net.http.HttpClient;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
@@ -57,8 +55,11 @@ public class UpstageClient {
         // MultipartBodyBuilder 는 reactive-streams 가 필요해서 쓰지 않는다
         HttpHeaders fileHeaders = new HttpHeaders();
         fileHeaders.setContentType(MediaType.APPLICATION_PDF);
-        fileHeaders.setContentDisposition(ContentDisposition.formData()
-                .name("file").filename(fileName, StandardCharsets.UTF_8).build());
+        // filename="원본 서류.pdf" 처럼 UTF-8 그대로 보낸다(파이썬 openai SDK·브라우저와 같은 방식).
+        // ContentDisposition.filename(name, UTF_8) 은 filename*= 와 ASCII 대체값(filename="_____.pdf")을 함께 보내는데,
+        // Upstage 는 filename 만 읽어서 한글이 _ 로 바뀐다
+        fileHeaders.set(HttpHeaders.CONTENT_DISPOSITION,
+                "form-data; name=\"file\"; filename=\"" + formFileName(fileName) + "\"");
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("file", new HttpEntity<>(new FileSystemResource(pdf), fileHeaders));
         body.add("purpose", "user_data");
@@ -107,8 +108,14 @@ public class UpstageClient {
             throw new AgentException("Upstage 파일 삭제 실패 (HTTP " + e.getStatusCode().value() + "): "
                     + abbreviate(e.getResponseBodyAsString()), e);
         } catch (RestClientException e) {
-            throw new AgentException("Upstage 파일 삭제 실패: " + e.getMessage(), e);
+            throw AgentException.transientError("Upstage 파일 삭제 실패: " + e.getMessage(), e);
         }
+    }
+
+    /** HTML 폼 규칙대로 따옴표·줄바꿈만 이스케이프한다. 나머지(한글 등)는 그대로 둔다 */
+    static String formFileName(String name) {
+        String n = name == null || name.isBlank() ? "document.pdf" : name;
+        return n.replace("\"", "%22").replace("\r", "%0D").replace("\n", "%0A");
     }
 
     private static final ParameterizedTypeReference<Map<String, Object>> MAP = new ParameterizedTypeReference<>() {
@@ -122,10 +129,12 @@ public class UpstageClient {
             }
             return result;
         } catch (RestClientResponseException e) {
-            throw new AgentException("Upstage " + what + " 실패 (HTTP " + e.getStatusCode().value() + "): "
-                    + abbreviate(e.getResponseBodyAsString()), e);
+            int code = e.getStatusCode().value();
+            throw new AgentException("Upstage " + what + " 실패 (HTTP " + code + "): "
+                    + abbreviate(e.getResponseBodyAsString()), e, code == 429 || code >= 500);
         } catch (RestClientException e) {
-            throw new AgentException("Upstage " + what + " 실패: " + e.getMessage(), e);
+            // 응답을 못 받음(연결 실패·끊김·시간 초과) → 다시 하면 될 수 있다
+            throw AgentException.transientError("Upstage " + what + " 실패: " + e.getMessage(), e);
         }
     }
 

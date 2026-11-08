@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.function.Consumer;
@@ -53,7 +54,8 @@ public class OriginCheckWorker {
 
     @Scheduled(fixedDelayString = "${app.agent.poll-interval-ms:5000}", initialDelayString = "${app.agent.initial-delay-ms:3000}")
     public void tick() {
-        checks.findTop20ByStatusOrderByIdAsc(CheckStatus.QUEUED).forEach(c -> safely(c, this::submit));
+        checks.findTop20ByStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(CheckStatus.QUEUED, Instant.now())
+                .forEach(c -> safely(c, this::submit));
         checks.findTop20ByStatusOrderByIdAsc(CheckStatus.IN_PROGRESS).forEach(c -> safely(c, this::poll));
         checks.findTop20ByStatusInAndAgentFileIdIsNotNullOrderByIdAsc(FINISHED).forEach(c -> safely(c, this::cleanup));
     }
@@ -86,8 +88,18 @@ public class OriginCheckWorker {
             update(c.getId(), x -> x.markSubmitted(sub.jobId(), sub.fileId()));
             log.info("점검 #{} 제출 → agent 작업 {}", c.getId(), sub.jobId());
         } catch (AgentException e) {
-            log.warn("점검 #{} 제출 실패: {}", c.getId(), e.getMessage());
-            update(c.getId(), x -> x.markFailed("AGENT_ERROR", e.getMessage()));
+            int failures = c.getSubmitAttempts() + 1;
+            if (e.isRetryable() && failures < props.submitMaxAttempts()) {
+                // 연결 끊김·5xx·429: 잠시 뒤 다시 제출한다(맥 잠자기·네트워크 순단 등)
+                Duration wait = props.submitBackoff(failures);
+                log.warn("점검 #{} 제출 실패 {}/{}회, {}초 뒤 재시도: {}", c.getId(), failures, props.submitMaxAttempts(),
+                        wait.toSeconds(), e.getMessage());
+                update(c.getId(), x -> x.deferSubmit(Instant.now().plus(wait)));
+                return;
+            }
+            log.warn("점검 #{} 제출 실패({}회 시도): {}", c.getId(), failures, e.getMessage());
+            String msg = failures > 1 ? e.getMessage() + " (" + failures + "회 시도)" : e.getMessage();
+            update(c.getId(), x -> x.markFailed("AGENT_ERROR", msg));
         } catch (RuntimeException | LinkageError e) {
             // LinkageError: 라이브러리 누락(NoClassDefFoundError) 등. 잡지 않으면 같은 건을 끝없이 다시 제출한다
             log.error("점검 #{} 제출 중 오류", c.getId(), e);

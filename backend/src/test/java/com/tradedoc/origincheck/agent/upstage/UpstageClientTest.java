@@ -95,7 +95,8 @@ class UpstageClientTest {
         String body = r.bodyText();
         assertThat(body).contains("name=\"file\"").contains("application/pdf").contains("%PDF-1.4 test");
         assertThat(body).contains("name=\"purpose\"").contains("user_data");
-        assertThat(body).contains("filename*=UTF-8''%EC%9B%90%EB%B3%B8"); // 한글 파일명
+        // 한글 파일명은 UTF-8 그대로(ASCII 대체값 "_____.pdf" 가 아니라)
+        assertThat(body).contains("filename=\"원본 서류.pdf\"").doesNotContain("filename*=").doesNotContain("_____");
     }
 
     @Test
@@ -148,7 +149,33 @@ class UpstageClientTest {
         assertThatThrownBy(() -> client("proj_test").createResponse("file_1"))
                 .isInstanceOf(AgentException.class)
                 .hasMessageContaining("HTTP 403")
-                .hasMessageContaining("No access to file");
+                .hasMessageContaining("No access to file")
+                .satisfies(e -> assertThat(((AgentException) e).isRetryable()).as("4xx 는 다시 해도 같다").isFalse());
+    }
+
+    @Test
+    void 서버_오류와_429는_재시도_대상() {
+        for (int code : new int[]{500, 503, 429}) {
+            status = code;
+            responseBody = "{}";
+            assertThatThrownBy(() -> client("proj_test").createResponse("file_1"))
+                    .isInstanceOf(AgentException.class)
+                    .satisfies(e -> assertThat(((AgentException) e).isRetryable()).as("HTTP " + code).isTrue());
+        }
+    }
+
+    @Test
+    void 연결_실패는_재시도_대상() {
+        server.stop(0);
+        assertThatThrownBy(() -> client("proj_test").createResponse("file_1"))
+                .isInstanceOf(AgentException.class)
+                .satisfies(e -> assertThat(((AgentException) e).isRetryable()).isTrue());
+    }
+
+    @Test
+    void 파일명의_따옴표와_줄바꿈은_이스케이프한다() {
+        assertThat(UpstageClient.formFileName("a\"b\r\n.pdf")).isEqualTo("a%22b%0D%0A.pdf");
+        assertThat(UpstageClient.formFileName(" ")).isEqualTo("document.pdf");
     }
 
     @Test

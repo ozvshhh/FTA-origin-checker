@@ -50,7 +50,7 @@ Upstage 키 없이 화면을 만들 때는 `.env`에 `AGENT_MODE=fake`, `AGENT_F
 ## 테스트·빌드
 
 ```sh
-cd backend && ./gradlew test      # 45개, 약 25초. Docker 필요(통합 테스트가 MySQL 컨테이너를 띄움)
+cd backend && ./gradlew test      # 60개, 약 25초. Docker 필요(통합 테스트가 MySQL 컨테이너를 띄움)
 cd frontend && npm run build && npm run lint
 ```
 
@@ -59,8 +59,8 @@ cd frontend && npm run build && npm run lint
 | 테스트 | 무엇을 보나 |
 |---|---|
 | `OriginCheckApiIntegrationTest` | 실제 MySQL + 가짜 agent 로 API 전체: 가입·로그인·토큰(없음·위조·만료), 업로드 검증, 접수→제출→완료/실패 흐름, 목록·필터·페이지, 원본 PDF, 남의 건 404 |
-| `OriginCheckWorkerTest` | 워커 상태 전환: 제출 성공/실패, 처리 중, 완료 저장, agent 실패, 조회 네트워크 오류 재시도, 해석 실패, 시간 초과, 한 건 오류가 다른 건을 막지 않음 |
-| `UpstageClientTest` | Upstage 로 보내는 요청 모양: multipart(file·purpose·한글 파일명), `x-project-id`, 작업 생성 본문, `include[]=all`, 오류 응답 |
+| `OriginCheckWorkerTest` | 워커 상태 전환: 제출 성공/실패, 제출 일시 오류 재시도(간격·최대 횟수), 처리 중, 완료 저장, agent 실패, 조회 네트워크 오류 재시도, 해석 실패, 시간 초과, 한 건 오류가 다른 건을 막지 않음 |
+| `UpstageClientTest` | Upstage 로 보내는 요청 모양: multipart(file·purpose·한글 파일명 UTF-8 그대로), `x-project-id`, 작업 생성 본문, `include[]=all`, 오류 응답·재시도 대상 구분 |
 | `UpstageResponseParserTest` · `AgentCheckResultJsonTest` | Upstage 응답 → 결과 변환, set04 응답 왕복, 코드표 |
 | `JwtProviderTest` | 발급·검증, 만료·다른 키·다른 발급자·`alg: none`·변조 거절, 비밀 키 없음 |
 

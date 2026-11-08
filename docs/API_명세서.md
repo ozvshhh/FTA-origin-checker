@@ -28,6 +28,7 @@
 | 인증 | JWT(HS256). `POST /auth/login`·`/auth/signup` 으로 받은 토큰을 `Authorization: Bearer <token>` 으로 보낸다. 로그인·가입·health 외 모두 필요 (§2.1) |
 | 호출 방식 | **비동기.** 접수(202) → 상세를 몇 초 간격으로 조회 → `status` 가 `completed`/`failed` 가 되면 끝. 서버를 재시작해도 DB 기준으로 이어서 처리한다 |
 | 처리 시간 제한 | 제출 후 30분(`AGENT_TIMEOUT`)이 지나면 `failed` (`AGENT_TIMEOUT`) |
+| 제출 재시도 | 제출 중 일시적 오류(연결 끊김·시간 초과·5xx·429)는 `queued` 로 둔 채 10초·20초·40초… 간격으로 최대 5번 다시 한다. 4xx(인증·권한 등)는 바로 `failed` |
 | 업로드 | `multipart/form-data`, PDF 1개, 최대 50MB |
 | 응답 형식 | `application/json; charset=utf-8`. 키는 snake_case, 추출 결과의 키만 워크플로 스키마 이름(한글) 그대로 |
 | 값 규칙 | 워크플로가 내는 값(판정·서류명·노드 이름)은 한글 표기 그대로. 추출 결과에서 문서에 없는 값은 문자열 `""`, 숫자 `0`, 참거짓 `false` |
@@ -175,7 +176,7 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 
 | `error.code` | 언제 |
 |---|---|
-| `AGENT_ERROR` | agent 제출 실패(네트워크·인증·4xx/5xx) |
+| `AGENT_ERROR` | agent 제출 실패. 4xx 는 바로, 일시적 오류(네트워크·5xx·429)는 재시도를 다 써도 안 될 때 |
 | `AGENT_FAILED` | agent 작업이 failed·cancelled·incomplete 로 끝남 |
 | `AGENT_TIMEOUT` | 제출 후 `AGENT_TIMEOUT`(기본 30분) 안에 안 끝남 |
 | `RESULT_PARSE_ERROR` | agent 응답을 결과 형식으로 바꾸지 못함 |
@@ -553,6 +554,8 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `AGENT_FAKE_RESULT` · `AGENT_FAKE_DELAY` | · 10s | fake 모드 결과 파일 · 지연 |
 | `AGENT_POLL_INTERVAL_MS` | 5000 | 워커 주기 |
 | `AGENT_TIMEOUT` | 30m | 처리 시간 제한 |
+| `AGENT_SUBMIT_MAX_ATTEMPTS` | 5 | 일시적 오류일 때 제출 최대 시도 수 |
+| `AGENT_SUBMIT_RETRY_DELAY` | 10s | 첫 재시도 대기(시도마다 두 배, 최대 10분) |
 | `UPSTAGE_API_KEY` | (없음) | upstage 모드에서 필수. 코드·저장소에 적지 않는다 |
 | `UPSTAGE_PROJECT_ID` · `UPSTAGE_AGENT_ID` · `UPSTAGE_CONFIG_ID` | proj_UVMuo7ZXt5heYMoei8ocJH · agt_5HHQZgemm6hmRVLHyGu4dG · 5 | §6 |
 | `STORAGE_DIR` | ./data/uploads | 업로드 PDF 저장 위치 |

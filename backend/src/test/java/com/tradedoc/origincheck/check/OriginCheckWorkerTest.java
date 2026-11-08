@@ -48,11 +48,13 @@ class OriginCheckWorkerTest {
         when(repo.findById(any())).thenAnswer(inv -> Optional.ofNullable(db.get(inv.<Long>getArgument(0))));
         when(repo.findTop20ByStatusOrderByIdAsc(any())).thenAnswer(inv -> db.values().stream()
                 .filter(c -> c.getStatus() == inv.getArgument(0)).toList());
+        when(repo.findTop20ByStatusAndNextSubmitAtLessThanEqualOrderByIdAsc(any(), any())).thenAnswer(inv -> db.values().stream()
+                .filter(c -> c.getStatus() == inv.getArgument(0) && !c.getNextSubmitAt().isAfter(inv.getArgument(1))).toList());
         when(repo.findTop20ByStatusInAndAgentFileIdIsNotNullOrderByIdAsc(any())).thenAnswer(inv -> db.values().stream()
                 .filter(c -> inv.<List<CheckStatus>>getArgument(0).contains(c.getStatus()) && c.getAgentFileId() != null).toList());
         FileStorage storage = mock(FileStorage.class);
         when(storage.path(any())).thenAnswer(inv -> Path.of("/files", inv.<String>getArgument(0)));
-        AgentProperties props = new AgentProperties("test", null, Duration.ZERO, 1000, Duration.ofMinutes(30));
+        AgentProperties props = new AgentProperties("test", null, Duration.ZERO, 1000, Duration.ofMinutes(30), 3, Duration.ofSeconds(10));
         worker = new OriginCheckWorker(repo, agent, storage, props, mapper, new TransactionTemplate(new NoopTxManager()));
     }
 
@@ -77,6 +79,51 @@ class OriginCheckWorkerTest {
         worker.tick();
 
         assertFailed(c, "AGENT_ERROR", "HTTP 403");
+    }
+
+    @Test
+    void 제출_중_일시적_오류면_접수_상태로_두고_나중에_다시_제출한다() {
+        OriginCheck c = queued(1L);
+        agent.submitError = AgentException.transientError("Upstage 파일 업로드 실패: I/O error", null);
+
+        worker.tick();
+
+        assertThat(c.getStatus()).isEqualTo(CheckStatus.QUEUED);
+        assertThat(c.getSubmitAttempts()).isEqualTo(1);
+        assertThat(c.getNextSubmitAt()).isAfter(Instant.now().plusSeconds(5));
+
+        worker.tick(); // 대기 시간 전에는 다시 부르지 않는다
+        assertThat(agent.submitCalls).isEqualTo(1);
+
+        agent.submitError = null;
+        ReflectionTestUtils.setField(c, "nextSubmitAt", Instant.now().minusSeconds(1));
+        worker.tick();
+        assertThat(c.getStatus()).isEqualTo(CheckStatus.IN_PROGRESS);
+        assertThat(agent.submitCalls).isEqualTo(2);
+    }
+
+    @Test
+    void 일시적_오류가_최대_횟수까지_이어지면_AGENT_ERROR() {
+        OriginCheck c = queued(1L);
+        agent.submitError = AgentException.transientError("Upstage 파일 업로드 실패 (HTTP 503)", null);
+
+        for (int i = 0; i < 3; i++) {
+            ReflectionTestUtils.setField(c, "nextSubmitAt", Instant.now().minusSeconds(1));
+            worker.tick();
+        }
+
+        assertFailed(c, "AGENT_ERROR", "3회 시도");
+        assertThat(agent.submitCalls).isEqualTo(3);
+    }
+
+    @Test
+    void 재시도_간격은_두_배씩_늘고_10분을_넘지_않는다() {
+        AgentProperties p = new AgentProperties("x", null, null, 1000, Duration.ofMinutes(30), null, null);
+        assertThat(p.submitMaxAttempts()).isEqualTo(5);
+        assertThat(p.submitBackoff(1)).isEqualTo(Duration.ofSeconds(10));
+        assertThat(p.submitBackoff(2)).isEqualTo(Duration.ofSeconds(20));
+        assertThat(p.submitBackoff(4)).isEqualTo(Duration.ofSeconds(80));
+        assertThat(p.submitBackoff(30)).isEqualTo(Duration.ofMinutes(10));
     }
 
     @Test
@@ -253,6 +300,7 @@ class OriginCheckWorkerTest {
         OriginCheck c = new OriginCheck(10L, "제목", "set04.pdf", "key-" + id, 100);
         ReflectionTestUtils.setField(c, "id", id);
         ReflectionTestUtils.setField(c, "createdAt", Instant.now());
+        ReflectionTestUtils.setField(c, "nextSubmitAt", Instant.now());
         db.put(id, c);
         return c;
     }
