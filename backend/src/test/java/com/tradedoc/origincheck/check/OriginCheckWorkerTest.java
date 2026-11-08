@@ -193,7 +193,7 @@ class OriginCheckWorkerTest {
     @Test
     void 조회_중_네트워크_오류면_다음_주기에_다시_본다() {
         OriginCheck c = inProgress(1L, Instant.now());
-        agent.pollError = new AgentException("Upstage 결과 조회 실패: timeout");
+        agent.pollError = AgentException.transientError("Upstage 결과 조회 실패: timeout", null);
 
         worker.tick();
 
@@ -203,6 +203,17 @@ class OriginCheckWorkerTest {
         agent.next = AgentPoll.failed("x");
         worker.tick();
         assertThat(c.getStatus()).isEqualTo(CheckStatus.FAILED);
+    }
+
+    @Test
+    void 조회가_4xx로_실패하면_시간_초과까지_기다리지_않고_AGENT_ERROR() {
+        OriginCheck c = inProgress(1L, Instant.now());
+        agent.pollError = new AgentException("Upstage 결과 조회 실패 (HTTP 404): response not found");
+
+        worker.tick();
+
+        assertFailed(c, "AGENT_ERROR", "HTTP 404");
+        assertThat(agent.pollCalls).isEqualTo(1);
     }
 
     @Test

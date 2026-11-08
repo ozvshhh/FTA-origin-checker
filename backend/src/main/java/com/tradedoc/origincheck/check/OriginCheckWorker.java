@@ -117,7 +117,13 @@ public class OriginCheckWorker {
         try {
             p = agent.poll(c.getAgentJobId());
         } catch (AgentException e) {
-            // 일시적인 네트워크 오류일 수 있으니 실패 처리하지 않고 다음 주기에 다시 본다(시간 초과로 끝난다)
+            if (!e.isRetryable()) {
+                // 4xx(작업이 없음·권한 없음 등): 다시 물어도 같으니 시간 초과까지 기다리지 않고 끝낸다
+                log.warn("점검 #{} 조회 실패(재시도 안 함): {}", c.getId(), e.getMessage());
+                update(c.getId(), x -> x.markFailed("AGENT_ERROR", e.getMessage()));
+                return;
+            }
+            // 연결 끊김·5xx·429: 실패 처리하지 않고 다음 주기에 다시 본다(시간 초과로 끝난다)
             log.warn("점검 #{} 조회 실패(다음 주기에 재시도): {}", c.getId(), e.getMessage());
             return;
         } catch (RuntimeException | LinkageError e) {
