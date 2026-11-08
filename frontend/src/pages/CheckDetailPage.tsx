@@ -7,7 +7,7 @@ import { isBusy, useChecks } from '../checks/ChecksContext'
 import { usePanel, type PanelKind } from '../checks/usePanel'
 import { COLLAPSE_ACTIVE_GROUP, keepListParams } from '../components/CheckSidebar'
 import { ConfirmDialog } from '../components/ConfirmDialog'
-import { IconAlert, IconArrowLeft, IconCheck, IconChevronDown, IconChevronRight, IconChevronUp, IconFile, IconLink, IconMail, IconRefresh, IconScale, IconTrash } from '../components/icons'
+import { IconAlert, IconArrowLeft, IconCheck, IconChevronDown, IconChevronRight, IconChevronUp, IconFile, IconMail, IconRefresh, IconScale, IconTrash } from '../components/icons'
 import { FOLLOW_UP_TITLE, LawPanel, MailPanel, PdfPanel, SidePanel } from '../components/SidePanels'
 import { COUNTRY_FIELDS, Country } from '../components/Country'
 import { DocChip } from '../components/DocChip'
@@ -184,17 +184,16 @@ export function CheckDetailPage() {
                   <PanelButton active={panel === 'mail'} onClick={() => toggle('mail')} disabled={!data.follow_up} icon={<IconMail />}>
                     {data.follow_up ? (FOLLOW_UP_TITLE[data.follow_up.kind] ?? '후속 문서').replace(' 초안', '') : '후속 문서'}
                   </PanelButton>
-                  <CopyLinkButton />
                   {canDelete && (
                     <button
                       type="button"
-                      className="btn-icon btn-ghost btn-sm"
+                      className="btn-sm tool-btn delete-btn"
                       onClick={() => setConfirmDelete(true)}
                       disabled={acting != null}
-                      aria-label="삭제"
-                      title="삭제"
+                      title="이 심사와 올린 원본 PDF 삭제"
                     >
-                      <IconTrash />
+                      <IconTrash size={14} />
+                      삭제
                     </button>
                   )}
                   {canDone && (
@@ -256,29 +255,6 @@ function PanelButton({ active, onClick, disabled, icon, children }: { active: bo
     <button type="button" className={`btn-sm tool-btn${active ? ' is-active' : ''}`} aria-pressed={active} onClick={onClick} disabled={disabled}>
       {icon}
       {children}
-    </button>
-  )
-}
-
-function CopyLinkButton() {
-  const [done, setDone] = useState(false)
-  return (
-    <button
-      type="button"
-      className="btn-icon btn-ghost btn-sm"
-      aria-label="링크 복사"
-      title="링크 복사"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(location.href)
-          setDone(true)
-          setTimeout(() => setDone(false), 1500)
-        } catch {
-          /* 권한 없음 */
-        }
-      }}
-    >
-      {done ? <IconCheck /> : <IconLink />}
     </button>
   )
 }

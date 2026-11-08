@@ -321,6 +321,10 @@ a.sb-row:focus-visible { outline-offset: -2px; }
 .tool-btn:hover { color: var(--color-text); }
 .tool-btn.is-active { color: var(--color-accent); background: var(--color-accent-subtle); border-color: var(--color-accent-border); }
 .tool-btn:disabled { opacity: 0.5; }
+/* 삭제: 도구 버튼과 같은 크기에 글자를 붙이고 위험 색으로 구분한다 (확인 창을 한 번 거친다) */
+.delete-btn { color: var(--tone-danger-fg); border-color: var(--tone-danger-border); }
+.delete-btn:hover:not(:disabled) { color: var(--tone-danger-fg); background: var(--tone-danger-bg); border-color: var(--tone-danger-fg); }
+.delete-btn:focus-visible { outline-color: var(--tone-danger-solid); }
 .detail-title { font-size: var(--text-3xl); line-height: var(--leading-tight); }
 .detail-sub { display: flex; align-items: center; gap: 6px; margin-top: var(--space-2); color: var(--color-text-muted); font-size: var(--text-sm); }
 .detail-empty, .home { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-3); text-align: center; padding: var(--space-8); color: var(--color-text-muted); }
