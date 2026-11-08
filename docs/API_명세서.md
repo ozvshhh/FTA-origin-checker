@@ -29,7 +29,7 @@
 | 호출 방식 | **비동기.** 접수(202) → 상세를 몇 초 간격으로 조회 → `status` 가 `completed`/`failed` 가 되면 끝. 서버를 재시작해도 DB 기준으로 이어서 처리한다 |
 | 처리 시간 제한 | 제출 후 30분(`AGENT_TIMEOUT`)이 지나면 `failed` (`AGENT_TIMEOUT`) |
 | 제출 재시도 | 제출 중 일시적 오류(연결 끊김·시간 초과·5xx·429)는 `queued` 로 둔 채 10초·20초·40초… 간격으로 최대 5번 다시 한다. 4xx(인증·권한 등)는 바로 `failed` |
-| 업로드 | `multipart/form-data`, PDF 1개, 최대 50MB |
+| 업로드 | `multipart/form-data`, PDF 1~20개, 합계 100MB |
 | 응답 형식 | `application/json; charset=utf-8`. 키는 snake_case, 추출 결과의 키만 워크플로 스키마 이름(한글) 그대로 |
 | 값 규칙 | 워크플로가 내는 값(판정·서류명·노드 이름)은 한글 표기 그대로. 추출 결과에서 문서에 없는 값은 문자열 `""`, 숫자 `0`, 참거짓 `false` |
 | 권한 | 점검 건은 만든 사용자만 볼 수 있다. 남의 건은 404 |
@@ -45,6 +45,8 @@
 | `GET` | `/api/v1/origin-checks` | O | 내 점검 목록(최신순, 페이지) |
 | `GET` | `/api/v1/origin-checks/{id}` | O | 점검 상세 + 결과 전체 |
 | `GET` | `/api/v1/origin-checks/{id}/file` | O | 원본 PDF (PDF 뷰어·하이라이트용) |
+| `PUT` | `/api/v1/origin-checks/{id}/done` | O | 담당자 완료 처리 (진행 중 목록에서 뺀다) |
+| `DELETE` | `/api/v1/origin-checks/{id}/done` | O | 완료 처리 되돌리기 |
 | `GET` | `/api/v1/health` | - | `{"ok": true}` |
 
 ### 2.1 인증 (JWT)
@@ -98,12 +100,21 @@
 
 | 위치 | 이름 | 타입 | 필수 | 설명 |
 |---|---|---|---|---|
-| form | `file` | file (`application/pdf`) | O | 한 선적 건의 서류(인보이스·패킹리스트·B/L·원산지증명서·원산지확인서·수출신고필증)를 이어 붙인 PDF. 순서 무관 |
-| form | `title` | string | | 심사 제목(≤200). 비우면 파일명 |
+| form | `file` | file (`application/pdf`), 1~20개 | O | 한 선적 건의 서류 PDF. 서류마다 따로 올려도 되고(같은 이름 `file` 로 여러 번), 6종을 이어 붙인 PDF 1개도 된다. 합계 100MB (파일 하나는 따로 제한하지 않음) |
+| form | `title` | string | | 관리번호·메모(≤200). 비우면 파일명(여러 개면 `<첫 파일> 외 n건.pdf`) |
+| form | `hint` | string, `file` 과 같은 수·순서 | | 화면이 파일명으로 짐작한 서류 종류(`인보이스` `패킹리스트` `B/L` `원산지증명서` `원산지확인서` `수출신고필증`). 모르는 값은 버린다. 판정에는 쓰지 않는다 |
+
+파일이 여러 개면 서버가 올린 순서대로 PDF 하나로 이어 붙여 점검한다(워크플로·판정 규칙은 그대로). 원본은 파일별로 보관하고, 상세 응답 `files[]` 에 이어 붙인 PDF 에서의 쪽 범위를 준다(§3).
 
 ```bash
 curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
   -F "file=@set04.pdf;type=application/pdf" -F "title=9월 말레이시아 선적"
+
+# 서류를 따로따로
+curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
+  -F "file=@CI_SM-2609-0044.pdf;type=application/pdf" -F "hint=인보이스" \
+  -F "file=@FORM_AK_0815.pdf;type=application/pdf" -F "hint=원산지증명서" \
+  -F "file=@scan_0412.pdf;type=application/pdf" -F "hint="
 ```
 
 응답 **202** — `OriginCheckCreatedResponse`, `Location: /api/v1/origin-checks/{id}`
@@ -112,7 +123,7 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 {"id": 1, "status": "queued"}
 ```
 
-오류: 400 `INVALID_FILE`(빈 파일·`%PDF`로 시작하지 않음·`file` 파트 없음) · 413 `FILE_TOO_LARGE` · 415 `UNSUPPORTED_MEDIA_TYPE`(`application/pdf`·`application/octet-stream` 이 아님)
+오류: 400 `INVALID_FILE`(빈 파일·`%PDF`로 시작하지 않음·열 수 없거나 암호가 걸린 PDF·`file` 파트 없음) · 400 `VALIDATION_ERROR`(21개 이상) · 413 `FILE_TOO_LARGE`(합계 100MB 초과) · 415 `UNSUPPORTED_MEDIA_TYPE`(`application/pdf`·`application/octet-stream` 이 아님)
 
 ### 2.3 `GET /api/v1/origin-checks` — 내 점검 목록
 
@@ -135,7 +146,7 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 }
 ```
 
-`decision`·`invoice_no`·`completed_at` 은 완료 전에는 null.
+`decision`·`invoice_no`·`completed_at` 은 완료 전에는 null. `done_at` 은 담당자가 완료 처리한 시각, 진행 중이면 null (§2.5-1).
 
 ### 2.4 `GET /api/v1/origin-checks/{id}` — 점검 상세
 
@@ -154,6 +165,25 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 
 응답 200 `application/pdf`, `Content-Disposition: inline; filename*=UTF-8''…`. 인증 헤더가 필요하므로 프론트는 `fetch` → Blob → object URL 로 뷰어에 넘긴다.
 
+### 2.5-1 `PUT` · `DELETE /api/v1/origin-checks/{id}/done` — 담당자 완료 처리
+
+담당자가 결과를 확인하고 할 일을 마쳤다는 표시. 화면은 `done_at` 이 있는 건을 '완료' 보기로 옮기고 '진행 중' 목록에서 뺀다.
+점검 결과(판정)는 바꾸지 않는다.
+
+| 요청 | 동작 | 응답 200 |
+|---|---|---|
+| `PUT …/done` | `done_at` 을 지금 시각으로. 이미 완료면 처음 시각을 유지 | `OriginCheckSummary` (목록 한 건과 같은 모양) |
+| `DELETE …/done` | `done_at` 을 null 로 (진행 중으로 되돌림). 상태와 관계없이 된다 | 〃 |
+
+```json
+{"id": 1, "title": "PO-2610-118", "file_name": "사카밤바스피스_미션2_set04.pdf", "status": "completed",
+ "decision": "보완 요청", "invoice_no": "SM-2609-0044",
+ "created_at": "2026-11-07T15:11:53.583786Z", "completed_at": "2026-11-07T15:12:01.088887Z",
+ "done_at": "2026-11-08T12:21:40.120511Z"}
+```
+
+오류: 404 `ORIGIN_CHECK_NOT_FOUND` (없거나 남의 건), 409 `CHECK_NOT_FINISHED` (`queued`·`in_progress` 인 건을 완료 처리하려 함)
+
 ### 2.6 오류 코드
 
 모든 오류 본문은 `ErrorResponse` `{code, message, path, timestamp}` (§4.8).
@@ -167,7 +197,8 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 |
 | 404 | `ORIGIN_CHECK_NOT_FOUND` · `NOT_FOUND` | 점검 건 없음 · 경로 없음 |
 | 409 | `EMAIL_ALREADY_EXISTS` | 가입된 이메일 |
-| 413 | `FILE_TOO_LARGE` | 50MB 초과 |
+| 409 | `CHECK_NOT_FINISHED` | 처리 중인 점검 건을 완료 처리하려 함 |
+| 413 | `FILE_TOO_LARGE` | 합계 100MB 초과 |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | PDF 가 아닌 Content-Type |
 | 500 | `INTERNAL_ERROR` | 서버 오류 |
 | 503 | `AUTH_NOT_CONFIGURED` | 서버에 `JWT_SECRET` 이 없음 |
@@ -194,6 +225,8 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `status` | `CheckStatus` | `queued` · `in_progress` · `completed` · `failed` |
 | `created_at` | string (date-time) | 접수 시각 (UTC) |
 | `completed_at` | string (date-time) \| null | 끝난 시각 (completed·failed) |
+| `done_at` | string (date-time) \| null | 담당자 완료 처리 시각. 진행 중이면 null |
+| `files` | `{name, size, page_from, page_to, hint_type}`[] | 올린 원본 파일(올린 순서). `page_from`~`page_to` = 원본 PDF(§2.5, 이어 붙인 PDF)에서 그 파일이 차지하는 쪽(1부터). `hint_type` = 올릴 때의 짐작, 없으면 null. 이 기능 전에 만든 건은 `[]` |
 | `job_id` | string \| null | agent 작업 ID (Upstage responses id) |
 | `judge` | `AgentJudge` \| null | 원산지_판정 결과 |
 | `mismatches` | `AgentMismatch`[] | mismatch_codes 마다 단계와 화면용 설명 |

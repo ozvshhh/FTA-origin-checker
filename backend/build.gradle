@@ -32,6 +32,8 @@ dependencies {
 	runtimeOnly "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
 	runtimeOnly "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
 	runtimeOnly 'com.mysql:mysql-connector-j'
+	// 여러 PDF 를 하나로 이어 붙이고 쪽 수를 센다
+	implementation 'org.apache.pdfbox:pdfbox:3.0.4'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'

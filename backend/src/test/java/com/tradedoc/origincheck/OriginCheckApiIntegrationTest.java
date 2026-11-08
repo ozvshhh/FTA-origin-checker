@@ -40,9 +40,11 @@ import java.util.Date;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -98,7 +100,7 @@ class OriginCheckApiIntegrationTest {
     void reset() throws Exception {
         AGENT.reset();
         if (pdf == null) {
-            pdf = "%PDF-1.4\n% test document\n".getBytes(StandardCharsets.UTF_8);
+            pdf = pdfWithPages(1);
         }
     }
 
@@ -312,6 +314,118 @@ class OriginCheckApiIntegrationTest {
                 .andExpect(jsonPath("$.error.code").value("AGENT_FAILED"));
     }
 
+    // ---------- 여러 파일 접수 ----------
+
+    @Test
+    void 여러_파일을_올리면_이어_붙여_한_건으로_점검한다() throws Exception {
+        String token = signup(uniqueEmail());
+        MvcResult created = mvc.perform(multipart("/api/v1/origin-checks")
+                        .file(new MockMultipartFile("file", "CI_SM-2609-0044.pdf", MediaType.APPLICATION_PDF_VALUE, pdfWithPages(1)))
+                        .file(new MockMultipartFile("file", "FORM_AK.pdf", MediaType.APPLICATION_PDF_VALUE, pdfWithPages(2)))
+                        .file(new MockMultipartFile("file", "scan.pdf", MediaType.APPLICATION_PDF_VALUE, pdfWithPages(3)))
+                        .param("hint", "인보이스", "원산지증명서", "zzz")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        long id = body(created).get("id").asLong();
+
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(jsonPath("$.file_name").value("CI_SM-2609-0044 외 2건.pdf"))
+                .andExpect(jsonPath("$.title").value("CI_SM-2609-0044 외 2건.pdf"))
+                .andExpect(jsonPath("$.files.length()").value(3))
+                .andExpect(jsonPath("$.files[0].name").value("CI_SM-2609-0044.pdf"))
+                .andExpect(jsonPath("$.files[0].page_from").value(1))
+                .andExpect(jsonPath("$.files[0].page_to").value(1))
+                .andExpect(jsonPath("$.files[0].hint_type").value("인보이스"))
+                .andExpect(jsonPath("$.files[1].page_from").value(2))
+                .andExpect(jsonPath("$.files[1].page_to").value(3))
+                .andExpect(jsonPath("$.files[1].hint_type").value("원산지증명서"))
+                .andExpect(jsonPath("$.files[2].page_from").value(4))
+                .andExpect(jsonPath("$.files[2].page_to").value(6))
+                .andExpect(jsonPath("$.files[2].hint_type").doesNotExist()); // 모르는 짐작 값은 버린다
+
+        // agent 에는 이어 붙인 6쪽짜리 PDF 하나가 간다
+        worker.tick();
+        try (var d = org.apache.pdfbox.Loader.loadPDF(AGENT.lastSubmittedPath.toFile())) {
+            assertThat(d.getNumberOfPages()).isEqualTo(6);
+        }
+        MvcResult file = mvc.perform(auth(get("/api/v1/origin-checks/" + id + "/file"), token)).andExpect(status().isOk()).andReturn();
+        try (var d = org.apache.pdfbox.Loader.loadPDF(file.getResponse().getContentAsByteArray())) {
+            assertThat(d.getNumberOfPages()).isEqualTo(6);
+        }
+    }
+
+    @Test
+    void 파일_하나는_그대로_쓰고_목록에_한_줄() throws Exception {
+        String token = signup(uniqueEmail());
+        long id = createCheck(token);
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(jsonPath("$.file_name").value("a.pdf"))
+                .andExpect(jsonPath("$.files.length()").value(1))
+                .andExpect(jsonPath("$.files[0].page_from").value(1))
+                .andExpect(jsonPath("$.files[0].page_to").value(1));
+    }
+
+    @Test
+    void 파일은_한_번에_20개까지() throws Exception {
+        String token = signup(uniqueEmail());
+        var req = multipart("/api/v1/origin-checks").header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        for (int i = 0; i < 21; i++) {
+            req.file(new MockMultipartFile("file", "f" + i + ".pdf", MediaType.APPLICATION_PDF_VALUE, pdf));
+        }
+        mvc.perform(req)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    // ---------- 담당자 완료 처리 ----------
+
+    @Test
+    void 완료_처리와_되돌리기() throws Exception {
+        String token = signup(uniqueEmail());
+        long id = createCheck(token);
+
+        // 처리 중(queued)인 건은 완료 처리할 수 없다
+        mvc.perform(auth(put("/api/v1/origin-checks/" + id + "/done"), token))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("CHECK_NOT_FINISHED"));
+
+        worker.tick();
+        AGENT.next = AgentPoll.completed(set04Result());
+        worker.tick();
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(jsonPath("$.status").value("completed"))
+                .andExpect(jsonPath("$.done_at").doesNotExist());
+
+        // 완료 처리 → 목록·상세에 done_at
+        MvcResult done = mvc.perform(auth(put("/api/v1/origin-checks/" + id + "/done"), token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(id))
+                .andExpect(jsonPath("$.done_at").exists())
+                .andReturn();
+        String doneAt = body(done).get("done_at").asString();
+        mvc.perform(auth(get("/api/v1/origin-checks/" + id), token))
+                .andExpect(jsonPath("$.done_at").value(doneAt));
+        mvc.perform(auth(get("/api/v1/origin-checks"), token))
+                .andExpect(jsonPath("$.items[0].done_at").value(doneAt));
+
+        // 다시 완료 처리해도 처음 시각을 유지한다
+        mvc.perform(auth(put("/api/v1/origin-checks/" + id + "/done"), token))
+                .andExpect(jsonPath("$.done_at").value(doneAt));
+
+        // 남의 건은 404
+        String other = signup(uniqueEmail());
+        mvc.perform(auth(put("/api/v1/origin-checks/" + id + "/done"), other))
+                .andExpect(status().isNotFound());
+
+        // 되돌리기 → 진행 중
+        mvc.perform(auth(delete("/api/v1/origin-checks/" + id + "/done"), token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.done_at").doesNotExist());
+        mvc.perform(auth(get("/api/v1/origin-checks"), token))
+                .andExpect(jsonPath("$.items[0].done_at").doesNotExist());
+    }
+
     // ---------- 목록·권한 ----------
 
     @Test
@@ -376,6 +490,18 @@ class OriginCheckApiIntegrationTest {
     private long createCheck(String token) throws Exception {
         MvcResult r = mvc.perform(upload(token, pdfFile("a.pdf"))).andExpect(status().isAccepted()).andReturn();
         return body(r).get("id").asLong();
+    }
+
+    /** PDFBox 로 만든 빈 쪽 n 개짜리 진짜 PDF (서버가 쪽 수를 세고 이어 붙이므로 열리는 PDF 여야 한다) */
+    private static byte[] pdfWithPages(int n) throws Exception {
+        try (org.apache.pdfbox.pdmodel.PDDocument d = new org.apache.pdfbox.pdmodel.PDDocument();
+             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            for (int i = 0; i < n; i++) {
+                d.addPage(new org.apache.pdfbox.pdmodel.PDPage());
+            }
+            d.save(out);
+            return out.toByteArray();
+        }
     }
 
     private MockMultipartFile pdfFile(String name) {

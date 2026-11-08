@@ -93,6 +93,10 @@ public class OriginCheck {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    /** 담당자가 확인을 마치고 완료 처리한 시각. null 이면 진행 중 */
+    @Column(name = "done_at")
+    private Instant doneAt;
+
     protected OriginCheck() {
     }
 
@@ -138,6 +142,23 @@ public class OriginCheck {
                 ? errorMessage : errorMessage.substring(0, 1000);
         this.status = CheckStatus.FAILED;
         this.completedAt = Instant.now();
+    }
+
+    /** 처리(agent)가 끝난 건인가. 처리 중인 건은 완료 처리할 수 없다 */
+    public boolean isFinished() {
+        return status == CheckStatus.COMPLETED || status == CheckStatus.FAILED;
+    }
+
+    /** 담당자 완료 처리. 이미 완료면 처음 시각을 유지한다 */
+    public void markDone() {
+        if (doneAt == null) {
+            doneAt = Instant.now();
+        }
+    }
+
+    /** 완료 처리를 되돌린다 (진행 중으로) */
+    public void reopen() {
+        doneAt = null;
     }
 
     /** 제출이 일시적 오류로 실패했다. QUEUED 로 두고 {@code next} 이후에 다시 제출한다 */
@@ -225,5 +246,9 @@ public class OriginCheck {
 
     public Instant getCompletedAt() {
         return completedAt;
+    }
+
+    public Instant getDoneAt() {
+        return doneAt;
     }
 }
