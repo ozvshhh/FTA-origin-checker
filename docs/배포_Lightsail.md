@@ -104,6 +104,22 @@ docker compose -f deploy/compose.prod.yaml logs -f backend
 
 브라우저에서 `https://<DOMAIN>`에 들어가 허용한 이메일로 가입하고 PDF를 올려 본다.
 
+## 4-1. CloudFront 프론트를 이 백엔드에 붙이기 (선택)
+
+Caddy가 같은 도메인에서 프론트를 이미 열어 주니 이 단계는 꼭 필요하지 않다. S3·CloudFront에 올린 프론트에서 실제 데이터를 보려면 아래처럼 한다.
+
+1. **백엔드 CORS에 CloudFront 주소를 넣는다.** 서버의 `deploy/.env`에 추가한다.
+   ```
+   CORS_ALLOWED_ORIGINS=https://d12xt8r4rn4unx.cloudfront.net
+   ```
+   그다음 `docker compose -f deploy/compose.prod.yaml up -d backend`로 백엔드를 다시 띄운다.
+2. **프론트를 실제 API 모드로 빌드해서 올린다.** API 주소는 `frontend/.env.cloudfront`의 `VITE_API_BASE_URL`에 있다.
+   ```bash
+   FRONT_BUCKET=origin-check-frontend-demo-174631225289 FRONT_DISTRIBUTION_ID=E3LK31UYO6C6UA scripts/deploy-frontend.sh
+   ```
+   - 가짜 데이터 데모로 되돌리려면 `scripts/deploy-frontend-demo.sh`를 실행한다.
+   - CloudFront의 `/api` 경로를 백엔드로 넘기는 방식은 쓰지 않는다. 지금 배포는 403·404를 `index.html`로 바꾸는 오류 응답 설정이 있어서 API 오류 응답까지 바뀐다.
+
 ## 5. 운영
 
 | 할 일 | 방법 |
