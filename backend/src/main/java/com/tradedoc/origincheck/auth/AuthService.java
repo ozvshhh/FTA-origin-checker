@@ -22,10 +22,13 @@ public class AuthService {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
+    private final SignupProperties signupProps;
     private final String dummyHash;
 
-    public AuthService(UserRepository users, PasswordEncoder passwordEncoder, JwtProvider jwtProvider) {
+    public AuthService(UserRepository users, PasswordEncoder passwordEncoder, JwtProvider jwtProvider,
+                       SignupProperties signupProps) {
         this.users = users;
+        this.signupProps = signupProps;
         this.passwordEncoder = passwordEncoder;
         this.jwtProvider = jwtProvider;
         this.dummyHash = passwordEncoder.encode("dummy-password-for-timing");
@@ -35,6 +38,9 @@ public class AuthService {
     @Transactional
     public TokenResponse signup(SignupRequest req) {
         String email = normalize(req.email());
+        if (!signupProps.allows(email)) {
+            throw new ApiException(ErrorCode.SIGNUP_NOT_ALLOWED);
+        }
         if (users.existsByEmail(email)) {
             throw new ApiException(ErrorCode.EMAIL_ALREADY_EXISTS);
         }

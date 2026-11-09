@@ -8,6 +8,7 @@ public enum ErrorCode {
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "토큰이 만료되었습니다. 다시 로그인하세요."),
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "이메일 또는 비밀번호가 맞지 않습니다."),
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 가입된 이메일입니다."),
+    SIGNUP_NOT_ALLOWED(HttpStatus.FORBIDDEN, "가입이 허용되지 않은 이메일입니다. 관리자에게 문의하세요."),
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "요청 값이 올바르지 않습니다."),
     INVALID_FILE(HttpStatus.BAD_REQUEST, "PDF 파일을 열 수 없습니다."),
     FILE_TOO_LARGE(HttpStatus.CONTENT_TOO_LARGE, "업로드 한도(합계 100MB)를 넘었습니다."),
