@@ -74,7 +74,7 @@
 | `name` | string | O | ≤50 |
 | `company` | string | | ≤100 |
 
-응답 **201** — `TokenResponse` (아래). 오류: 400 `VALIDATION_ERROR` · 409 `EMAIL_ALREADY_EXISTS` · 503 `AUTH_NOT_CONFIGURED`
+응답 **201** — `TokenResponse` (아래). 오류: 400 `VALIDATION_ERROR` · 403 `SIGNUP_NOT_ALLOWED`(`SIGNUP_ALLOWED_EMAILS` 에 없는 이메일) · 409 `EMAIL_ALREADY_EXISTS` · 503 `AUTH_NOT_CONFIGURED`
 
 #### `POST /api/v1/auth/login` — 로그인
 
@@ -229,6 +229,7 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 | 401 | `UNAUTHORIZED` | 토큰이 없거나 서명·형식이 틀림 |
 | 401 | `TOKEN_EXPIRED` | 토큰 만료 — 다시 로그인 |
 | 401 | `INVALID_CREDENTIALS` | 로그인 실패 |
+| 403 | `SIGNUP_NOT_ALLOWED` | 가입 허용 목록(`SIGNUP_ALLOWED_EMAILS`)에 없는 이메일 |
 | 404 | `ORIGIN_CHECK_NOT_FOUND` · `NOT_FOUND` | 점검 건 없음 · 경로 없음 |
 | 409 | `EMAIL_ALREADY_EXISTS` | 가입된 이메일 |
 | 409 | `CHECK_NOT_FINISHED` | 처리 중인 점검 건을 완료 처리하려 함 |
@@ -619,6 +620,7 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `DB_HOST` · `DB_PORT` · `DB_NAME` · `DB_USERNAME` · `DB_PASSWORD` | localhost · 3306 · origin_check · origin_check · origin_check | MySQL. 스키마는 Flyway(`db/migration`)가 만든다 |
 | `JWT_SECRET` | (없음) | 32바이트 이상. 없으면 인증 API 가 503 |
 | `JWT_EXPIRES_MIN` | 60 | 토큰 유효 시간(분) |
+| `SIGNUP_ALLOWED_EMAILS` | (없음 = 누구나) | 가입 허용 이메일. 쉼표로 여러 개, `@acme.com` 은 도메인 전체. 공개 서버에서는 꼭 채운다 |
 | `CORS_ALLOWED_ORIGINS` | http://localhost:5173 | 쉼표로 여러 개 |
 | `AGENT_MODE` | upstage | `upstage` · `fake` |
 | `AGENT_FAKE_RESULT` · `AGENT_FAKE_DELAY` | · 10s | fake 모드 결과 파일 · 지연 |
@@ -627,5 +629,6 @@ agent 쪽 실패는 HTTP 오류가 아니라 점검 건의 `status: failed` 와 
 | `AGENT_SUBMIT_MAX_ATTEMPTS` | 5 | 일시적 오류일 때 제출 최대 시도 수 |
 | `AGENT_SUBMIT_RETRY_DELAY` | 10s | 첫 재시도 대기(시도마다 두 배, 최대 10분) |
 | `UPSTAGE_API_KEY` | (없음) | upstage 모드에서 필수. 코드·저장소에 적지 않는다 |
+| `STORAGE_DIR` | ./data/uploads | 원본 PDF 저장 위치(운영 이미지는 /data/uploads) |
 | `UPSTAGE_PROJECT_ID` · `UPSTAGE_AGENT_ID` · `UPSTAGE_CONFIG_ID` | proj_UVMuo7ZXt5heYMoei8ocJH · agt_5HHQZgemm6hmRVLHyGu4dG · 5 | §6 |
 | `STORAGE_DIR` | ./data/uploads | 업로드 PDF 저장 위치 |

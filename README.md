@@ -50,10 +50,18 @@ npm run dev                   # http://localhost:5173 , /api 는 8080 으로 프
 
 Upstage 키 없이 화면을 만들 때는 `.env`에 `AGENT_MODE=fake`, `AGENT_FAKE_RESULT=src/test/resources/check_result_set04.json`을 넣는다. 업로드한 PDF와 상관없이 10초 뒤 set04 결과가 나온다.
 
+## 배포 (Lightsail)
+
+인스턴스 1대에 Caddy(HTTPS·프론트) + 백엔드 + MySQL 을 Docker Compose 로 올린다. 절차는 [docs/배포_Lightsail.md](docs/배포_Lightsail.md).
+
+```sh
+LIGHTSAIL_HOST=ubuntu@<고정IP> LIGHTSAIL_KEY=~/.ssh/lightsail.pem scripts/deploy-lightsail.sh
+```
+
 ## 테스트·빌드
 
 ```sh
-cd backend && ./gradlew test      # 92개, 약 25초. Docker 필요(통합 테스트가 MySQL 컨테이너를 띄움)
+cd backend && ./gradlew test      # 94개, 약 25초. Docker 필요(통합 테스트가 MySQL 컨테이너를 띄움)
 cd frontend && npm run build && npm run lint
 ```
 

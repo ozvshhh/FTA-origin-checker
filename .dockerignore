@@ -1,0 +1,9 @@
+# 저장소 루트를 컨텍스트로 쓰는 빌드(deploy/web.Dockerfile)용
+**/node_modules
+frontend/dist
+frontend/dist-demo
+backend
+.git
+.env
+**/.env
+docs
