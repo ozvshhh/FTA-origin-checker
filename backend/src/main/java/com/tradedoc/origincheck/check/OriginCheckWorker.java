@@ -142,9 +142,11 @@ public class OriginCheckWorker {
             case COMPLETED -> {
                 AgentCheckResult r = p.result();
                 String json = objectMapper.writeValueAsString(r);
+                CheckSummary summary = CheckSummary.from(r);
                 update(c.getId(), x -> x.markCompleted(json,
                         r.judge() == null ? null : r.judge().decision(),
-                        r.judge() == null ? null : r.judge().invoiceNo()));
+                        r.judge() == null ? null : r.judge().invoiceNo(),
+                        summary));
                 log.info("점검 #{} 완료: {}", c.getId(), r.judge() == null ? "판정 없음" : r.judge().decision().label());
             }
             case FAILED -> {

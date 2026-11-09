@@ -53,7 +53,7 @@ Upstage 키 없이 화면을 만들 때는 `.env`에 `AGENT_MODE=fake`, `AGENT_F
 ## 테스트·빌드
 
 ```sh
-cd backend && ./gradlew test      # 70개, 약 25초. Docker 필요(통합 테스트가 MySQL 컨테이너를 띄움)
+cd backend && ./gradlew test      # 92개, 약 25초. Docker 필요(통합 테스트가 MySQL 컨테이너를 띄움)
 cd frontend && npm run build && npm run lint
 ```
 

@@ -278,7 +278,13 @@ class OriginCheckApiIntegrationTest {
                 .andExpect(jsonPath("$.total_elements").value(1))
                 .andExpect(jsonPath("$.items[0].id").value(id))
                 .andExpect(jsonPath("$.items[0].decision").value("보완 요청"))
-                .andExpect(jsonPath("$.items[0].invoice_no").value("SM-2609-0044"));
+                .andExpect(jsonPath("$.items[0].invoice_no").value("SM-2609-0044"))
+                // 목록 요약: 완료될 때 추출 결과에서 뽑아 저장한 값
+                .andExpect(jsonPath("$.items[0].consignee").value("KL HOME SUPPLY SDN. BHD."))
+                .andExpect(jsonPath("$.items[0].primary_item").value("FROZEN MACKEREL"))
+                .andExpect(jsonPath("$.items[0].item_count").value(1))
+                .andExpect(jsonPath("$.items[0].destination_country").value("MALAYSIA"))
+                .andExpect(jsonPath("$.items[0].shipped_on").value("2026-10-07"));
         mvc.perform(auth(get("/api/v1/origin-checks").param("status", "failed"), token))
                 .andExpect(jsonPath("$.total_elements").value(0));
 

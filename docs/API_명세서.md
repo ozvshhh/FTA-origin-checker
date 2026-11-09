@@ -142,13 +142,26 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
   "items": [
     {"id": 1, "title": "set04 테스트", "file_name": "사카밤바스피스_미션2_set04.pdf", "status": "completed",
      "decision": "보완 요청", "invoice_no": "SM-2609-0044",
-     "created_at": "2026-11-07T15:11:53.583786Z", "completed_at": "2026-11-07T15:12:01.088887Z"}
+     "consignee": "KL HOME SUPPLY SDN. BHD.", "primary_item": "FROZEN MACKEREL", "item_count": 1,
+     "destination_country": "MALAYSIA", "shipped_on": "2026-10-07",
+     "created_at": "2026-11-07T15:11:53.583786Z", "completed_at": "2026-11-07T15:12:01.088887Z", "done_at": null}
   ],
   "page": 0, "size": 20, "total_elements": 1, "total_pages": 1
 }
 ```
 
 `decision`·`invoice_no`·`completed_at` 은 완료 전에는 null. `done_at` 은 담당자가 완료 처리한 시각, 진행 중이면 null (§2.5-1).
+
+목록 요약 필드 — 점검이 완료될 때 추출 결과에서 뽑아 저장해 둔 값이다(목록 조회 때 `result_json` 을 다시 읽지 않는다).
+완료 전(`queued`·`in_progress`·`failed`)이거나 서류에 값이 없으면 null. 같은 종류 서류가 여러 건이면 첫 번째 것을 쓴다.
+
+| 필드 | 타입 | 출처 |
+|---|---|---|
+| `consignee` | string \| null | 인보이스 consignee(바이어) |
+| `primary_item` | string \| null | 인보이스 첫 품목의 품명 |
+| `item_count` | int \| null | 인보이스 품목 수("외 n건" 표시용). 품목이 없으면 null |
+| `destination_country` | string \| null | 수출신고필증 `destination_country`, 없으면 원산지증명서 `importing_country`. 영문 원문 그대로(예: `MALAYSIA`) |
+| `shipped_on` | string(YYYY-MM-DD) \| null | B/L `laden_on_board_date`, 없으면 원산지증명서 `departure_date`. `2026/10/07`·`07 OCT 2026` 같은 표기도 YYYY-MM-DD 로 맞추고, 못 맞추면 null |
 
 ### 2.4 `GET /api/v1/origin-checks/{id}` — 점검 상세
 
@@ -180,6 +193,8 @@ curl -X POST "$BASE/api/v1/origin-checks" -H "Authorization: Bearer $TOKEN" \
 ```json
 {"id": 1, "title": "PO-2610-118", "file_name": "사카밤바스피스_미션2_set04.pdf", "status": "completed",
  "decision": "보완 요청", "invoice_no": "SM-2609-0044",
+ "consignee": "KL HOME SUPPLY SDN. BHD.", "primary_item": "FROZEN MACKEREL", "item_count": 1,
+ "destination_country": "MALAYSIA", "shipped_on": "2026-10-07",
  "created_at": "2026-11-07T15:11:53.583786Z", "completed_at": "2026-11-07T15:12:01.088887Z",
  "done_at": "2026-11-08T12:21:40.120511Z"}
 ```

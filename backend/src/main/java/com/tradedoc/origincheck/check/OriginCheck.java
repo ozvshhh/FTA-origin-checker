@@ -15,11 +15,12 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 
 /**
  * 원산지 점검 1건(화면의 "심사"). 원본 PDF 는 파일 저장소에, agent 결과 전체는 result_json 에 둔다.
- * 목록에 보이는 값(decision, invoice_no)만 따로 컬럼으로 뺐다.
+ * 목록에 보이는 값(decision, invoice_no, 요약 5개)만 따로 컬럼으로 뺐다.
  */
 @Entity
 @Table(name = "origin_checks")
@@ -71,6 +72,22 @@ public class OriginCheck {
 
     @Column(name = "invoice_no", length = 100)
     private String invoiceNo;
+
+    // 목록 요약(CheckSummary). 완료될 때 추출 결과에서 뽑아 둔다
+    @Column(length = 255)
+    private String consignee;
+
+    @Column(name = "primary_item", length = 255)
+    private String primaryItem;
+
+    @Column(name = "item_count")
+    private Integer itemCount;
+
+    @Column(name = "destination_country", length = 100)
+    private String destinationCountry;
+
+    @Column(name = "shipped_on")
+    private LocalDate shippedOn;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "result_json")
@@ -129,10 +146,11 @@ public class OriginCheck {
         this.submittedAt = now();
     }
 
-    public void markCompleted(String resultJson, Decision decision, String invoiceNo) {
+    public void markCompleted(String resultJson, Decision decision, String invoiceNo, CheckSummary summary) {
         this.resultJson = resultJson;
         this.decision = decision;
         this.invoiceNo = invoiceNo;
+        applySummary(summary == null ? CheckSummary.EMPTY : summary);
         this.status = CheckStatus.COMPLETED;
         this.completedAt = now();
     }
@@ -172,6 +190,7 @@ public class OriginCheck {
         this.resultJson = null;
         this.decision = null;
         this.invoiceNo = null;
+        applySummary(CheckSummary.EMPTY);
         this.errorCode = null;
         this.errorMessage = null;
         this.submittedAt = null;
@@ -242,6 +261,34 @@ public class OriginCheck {
 
     public String getInvoiceNo() {
         return invoiceNo;
+    }
+
+    private void applySummary(CheckSummary s) {
+        this.consignee = s.consignee();
+        this.primaryItem = s.primaryItem();
+        this.itemCount = s.itemCount();
+        this.destinationCountry = s.destinationCountry();
+        this.shippedOn = s.shippedOn();
+    }
+
+    public String getConsignee() {
+        return consignee;
+    }
+
+    public String getPrimaryItem() {
+        return primaryItem;
+    }
+
+    public Integer getItemCount() {
+        return itemCount;
+    }
+
+    public String getDestinationCountry() {
+        return destinationCountry;
+    }
+
+    public LocalDate getShippedOn() {
+        return shippedOn;
     }
 
     public String getResultJson() {
