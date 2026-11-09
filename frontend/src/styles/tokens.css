@@ -1,0 +1,345 @@
+/*
+ * 디자인 토큰 — FTA 원산지 서류 점검 · 테마 '검인(檢印)'
+ *
+ * 서류는 종이처럼 차분하게, 판단은 도장처럼 또렷하게.
+ * 바탕은 원산지증명서 용지 같은 옅은 초록 회색, 브랜드 색은 검인 남보라 하나, 판정 색은 판정에만.
+ * 디자인 시스템 페이지: https://claude.ai/artifact/88r1GWKHvvcLGoZngT9jEQ (README·컴포넌트 규칙)
+ *
+ * 층 구조
+ *   1) 원색(primitive)  --gray-500, --blue-600 …   값만 정의. 컴포넌트에서 직접 쓰지 않는다.
+ *   2) 의미(semantic)   --color-*, --tone-*, --hl-*  컴포넌트는 이것만 쓴다. 다크 모드에서 이 층만 바뀐다.
+ *   3) 치수             --space-*, --radius-*, --text-* …
+ */
+
+:root {
+  /* ───────── 1. 원색 ───────── */
+  --gray-0: #ffffff;
+  --gray-25: #fafbfc;
+  --gray-50: #f4f6f8;
+  --gray-100: #e9edf1;
+  --gray-200: #d6dce3;
+  --gray-300: #b6c0cb;
+  --gray-400: #8d99a6;
+  --gray-500: #6a7684;
+  --gray-600: #4f5a67;
+  --gray-700: #3a434e;
+  --gray-800: #262d36;
+  --gray-850: #1c2229;
+  --gray-900: #13171c;
+  --gray-950: #0c0f13;
+
+  --blue-50: #eef3ff;
+  --blue-100: #dbe5ff;
+  --blue-200: #b9cbff;
+  --blue-300: #8eaafc;
+  --blue-400: #5f82f2;
+  --blue-500: #3d5fe0;
+  --blue-600: #2c47c4;
+  --blue-700: #23389c;
+  --blue-800: #1e2f7a;
+  --blue-900: #18245a;
+
+  --green-50: #e9f7ef;
+  --green-100: #ccecd9;
+  --green-300: #6fc796;
+  --green-500: #1f9d57;
+  --green-600: #17834a;
+  --green-700: #12663a;
+  --green-900: #0b3a22;
+
+  --orange-50: #fff2e8;
+  --orange-100: #ffdfc7;
+  --orange-300: #fdab70;
+  --orange-500: #ea6a12;
+  --orange-600: #c4540a;
+  --orange-700: #9c4209;
+  --orange-900: #592607;
+
+  --red-50: #fdecec;
+  --red-100: #f9d0d0;
+  --red-300: #ef8a8a;
+  --red-500: #d93636;
+  --red-600: #b82626;
+  --red-700: #921e1e;
+  --red-900: #531111;
+
+  --yellow-50: #fef8e1;
+  --yellow-100: #fcecb3;
+  --yellow-300: #f5cd4f;
+  --yellow-500: #d9a406;
+  --yellow-600: #a87d00;
+  --yellow-700: #7f5e00;
+  --yellow-900: #4a3700;
+
+  /* ───────── 2. 의미 (라이트) ───────── */
+  color-scheme: light;
+
+  /* 바탕 · 면 */
+  --color-bg: #f3f5f1;            /* 페이지 바탕 */
+  --color-bg-subtle: #e9ece6;     /* 표 머리, 썸네일 레일, 스켈레톤 */
+  --color-surface: #ffffff;        /* 카드, 패널 */
+  --color-surface-raised: #ffffff; /* 모달, 드롭다운 (그림자와 함께) */
+  --color-surface-hover: #eef1eb;
+  --color-surface-selected: #ebeaf7;
+  --color-overlay: rgb(17 20 18 / 0.48); /* 모달 뒤 */
+  --color-pdf-canvas: #e9ece6;   /* PDF 뷰어 바탕 */
+
+  /* 선 */
+  --color-border: #d6dad2;
+  --color-border-subtle: #e4e7e1;
+  --color-border-strong: #858c82;
+
+  /* 글자 */
+  --color-text: #141a16;
+  --color-text-secondary: #47504a;
+  --color-text-muted: #5f6862;
+  --color-text-disabled: #9aa197;
+  --color-text-inverse: #ffffff;
+  --color-link: #3f3d9e;
+
+  /* 포인트 (주요 버튼, 선택, 포커스) */
+  --color-accent: #3f3d9e;
+  --color-accent-hover: #33317f;
+  --color-accent-subtle: #ebeaf7;
+  --color-accent-border: #c9c7ee;
+  --color-on-accent: #ffffff;
+  --color-focus-ring: rgb(63 61 158 / 0.35);
+
+  /* 상태 톤 — 배지·배너·알림 공용. bg(옅은 면) / fg(글자) / border / solid(점·아이콘·진한 면) */
+  --tone-success-bg: #e5f3ea;
+  --tone-success-fg: #1b7a46;
+  --tone-success-border: #b9dcc6;
+  --tone-success-solid: #1f8a50;
+
+  --tone-warning-bg: #fbeee3;
+  --tone-warning-fg: #b34d0a;
+  --tone-warning-border: #f0cfb4;
+  --tone-warning-solid: #d9650f;
+
+  --tone-danger-bg: #fae8e8;
+  --tone-danger-fg: #b42323;
+  --tone-danger-border: #efc1c1;
+  --tone-danger-solid: #cc3333;
+
+  --tone-caution-bg: #f8f0d8;
+  --tone-caution-fg: #8a6400;
+  --tone-caution-border: #e8d59c;
+  --tone-caution-solid: #c99a12;
+
+  --tone-info-bg: #ebeaf7;
+  --tone-info-fg: #3f3d9e;
+  --tone-info-border: #c9c7ee;
+  --tone-info-solid: #5553c4;
+
+  --tone-neutral-bg: #e9ece6;
+  --tone-neutral-fg: #47504a;
+  --tone-neutral-border: #d6dad2;
+  --tone-neutral-solid: #6e766f;
+
+  /* PDF 하이라이트 박스 (화면명세서 §5.3.3). stroke = 테두리, fill = 반투명 채움 */
+  --hl-mismatch-stroke: #cc3333;
+  --hl-mismatch-fill: rgb(214 48 48 / 0.30);
+  --hl-low-stroke: #d9650f;      /* 신뢰도 < 70% */
+  --hl-low-fill: rgb(240 120 30 / 0.30);
+  --hl-mid-stroke: #c99a12;      /* 70–90% */
+  --hl-mid-fill: rgb(240 190 30 / 0.40);
+  --hl-high-stroke: rgb(31 157 87 / 0.55); /* ≥ 90% (기본 숨김) */
+  --hl-high-fill: rgb(40 150 90 / 0.18);
+  --hl-selected-stroke: #3f3d9e;
+  --hl-selected-fill: rgb(63 61 158 / 0.22);
+  --hl-stroke-width: 1.5px;
+  --hl-stroke-width-selected: 2.5px;
+
+  /* 그림자 */
+  --shadow-xs: 0 1px 2px rgb(20 26 22 / 0.06);
+  --shadow-sm: 0 1px 3px rgb(19 23 28 / 0.08), 0 1px 2px rgb(19 23 28 / 0.04);
+  --shadow-md: 0 1px 2px rgb(20 26 22 / 0.06), 0 4px 16px rgb(20 26 22 / 0.06);
+  --shadow-lg: 0 12px 32px rgb(20 26 22 / 0.16);
+
+  /* ───────── 3. 치수 ───────── */
+
+  /* 글꼴 — Pretendard는 index.html에서 불러온다 */
+  --font-sans: 'IBM Plex Sans KR', 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* 글자 크기 — 업무 화면 기본은 14px */
+  --text-xs: 0.75rem;    /* 12 캡션, 보조 메타 */
+  --text-sm: 0.8125rem;  /* 13 표 보조, 배지 */
+  --text-md: 0.875rem;   /* 14 본문 기본 */
+  --text-lg: 1rem;       /* 16 강조 본문, 입력 */
+  --text-xl: 1.125rem;   /* 18 섹션 제목 */
+  --text-2xl: 1.375rem;  /* 22 페이지 제목 */
+  --text-3xl: 1.75rem;   /* 28 */
+  --text-4xl: 2.5rem;    /* 40 랜딩 히어로 */
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.55;
+  --leading-relaxed: 1.7;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --tracking-tight: -0.02em; /* 큰 제목 */
+  --tracking-normal: -0.005em;
+
+  /* 간격 — 4px 단위 */
+  --space-0: 0;
+  --space-1: 0.25rem; /* 4 */
+  --space-2: 0.5rem;  /* 8 */
+  --space-3: 0.75rem; /* 12 */
+  --space-4: 1rem;    /* 16 */
+  --space-5: 1.25rem; /* 20 */
+  --space-6: 1.5rem;  /* 24 */
+  --space-8: 2rem;    /* 32 */
+  --space-10: 2.5rem; /* 40 */
+  --space-12: 3rem;   /* 48 */
+  --space-16: 4rem;   /* 64 */
+
+  /* 모서리 */
+  --radius-sm: 2px;   /* 배지, 칩, 하이라이트 박스 */
+  --radius-md: 4px;   /* 버튼, 입력 */
+  --radius-lg: 6px;  /* 카드, 패널 */
+  --radius-xl: 10px;  /* 모달 */
+  --radius-full: 999px;
+
+  /* 컨트롤 높이 */
+  --control-h-sm: 28px;
+  --control-h-md: 36px;
+  --control-h-lg: 44px;
+
+  /* 레이아웃 */
+  --layout-max: 1200px;
+  --layout-max-wide: 1440px; /* S-03 PDF 분할 화면 */
+  --layout-gutter: var(--space-4);
+  --gnb-h: 56px;
+  --pdf-split: 55%;          /* PDF 뷰어 : 추출값 패널 = 55 : 45 */
+  --modal-w-sm: 420px;
+  --modal-w-md: 560px;
+
+  /* 쌓임 순서 */
+  --z-sticky: 10;
+  --z-gnb: 100;
+  --z-dropdown: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+  --z-tooltip: 500;
+
+  /* 움직임 */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ───────── 다크 모드: 의미 층만 다시 매핑 ─────────
+ * 기본은 OS 설정을 따르고, <html data-theme="light|dark">로 강제할 수 있다. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-bg: #111412;
+    --color-bg-subtle: #0c0e0d;
+    --color-surface: #191c1a;
+    --color-surface-raised: #202421;
+    --color-surface-hover: #202421;
+    --color-surface-selected: #23224a;
+    --color-overlay: rgb(0 0 0 / 0.6);
+    --color-pdf-canvas: #0c0e0d;
+    --color-border: #2b302c;
+    --color-border-subtle: #222623;
+    --color-border-strong: #6b736d;
+    --color-text: #e6ebe7;
+    --color-text-secondary: #b0b9b3;
+    --color-text-muted: #8c958f;
+    --color-text-disabled: #5b635d;
+    --color-text-inverse: #111412;
+    --color-link: #a5a3f2;
+    --color-accent: #a5a3f2;
+    --color-accent-hover: #bdbbf6;
+    --color-accent-subtle: #23224a;
+    --color-accent-border: #3b3a73;
+    --color-focus-ring: rgb(165 163 242 / 0.45);
+    --color-on-accent: #15143a;
+    --tone-success-bg: #13281c;
+    --tone-success-fg: #6fcf97;
+    --tone-success-border: #1f4a31;
+    --tone-warning-bg: #2e1d10;
+    --tone-warning-fg: #f4a46b;
+    --tone-warning-border: #5a3415;
+    --tone-danger-bg: #2f1415;
+    --tone-danger-fg: #f08a8a;
+    --tone-danger-border: #5e2224;
+    --tone-caution-bg: #2a2310;
+    --tone-caution-fg: #e7c15a;
+    --tone-caution-border: #55461a;
+    --tone-info-bg: #23224a;
+    --tone-info-fg: #a5a3f2;
+    --tone-info-border: #3b3a73;
+    --tone-neutral-bg: #202421;
+    --tone-neutral-fg: #c3cbc5;
+    --tone-neutral-border: #2b302c;
+    --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+    --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.55);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #111412;
+  --color-bg-subtle: #0c0e0d;
+  --color-surface: #191c1a;
+  --color-surface-raised: #202421;
+  --color-surface-hover: #202421;
+  --color-surface-selected: #23224a;
+  --color-overlay: rgb(0 0 0 / 0.6);
+  --color-pdf-canvas: #0c0e0d;
+  --color-border: #2b302c;
+  --color-border-subtle: #222623;
+  --color-border-strong: #6b736d;
+  --color-text: #e6ebe7;
+  --color-text-secondary: #b0b9b3;
+  --color-text-muted: #8c958f;
+  --color-text-disabled: #5b635d;
+  --color-text-inverse: #111412;
+  --color-link: #a5a3f2;
+  --color-accent: #a5a3f2;
+  --color-accent-hover: #bdbbf6;
+  --color-accent-subtle: #23224a;
+  --color-accent-border: #3b3a73;
+  --color-focus-ring: rgb(165 163 242 / 0.45);
+  --color-on-accent: #15143a;
+  --tone-success-bg: #13281c;
+  --tone-success-fg: #6fcf97;
+  --tone-success-border: #1f4a31;
+  --tone-warning-bg: #2e1d10;
+  --tone-warning-fg: #f4a46b;
+  --tone-warning-border: #5a3415;
+  --tone-danger-bg: #2f1415;
+  --tone-danger-fg: #f08a8a;
+  --tone-danger-border: #5e2224;
+  --tone-caution-bg: #2a2310;
+  --tone-caution-fg: #e7c15a;
+  --tone-caution-border: #55461a;
+  --tone-info-bg: #23224a;
+  --tone-info-fg: #a5a3f2;
+  --tone-info-border: #3b3a73;
+  --tone-neutral-bg: #202421;
+  --tone-neutral-fg: #c3cbc5;
+  --tone-neutral-border: #2b302c;
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 0.4);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}

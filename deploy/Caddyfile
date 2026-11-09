@@ -1,0 +1,31 @@
+# DOMAIN 에 도메인을 넣으면 Let's Encrypt 인증서를 자동으로 받아 HTTPS 로 연다(80·443 이 열려 있어야 한다).
+# 도메인이 없으면 고정 IP 로 'ip-3-35-1-2.sslip.io' 같은 이름을 쓸 수 있다.
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# API → 백엔드. PDF 는 합계 100MB 까지 올라온다
+	handle /api/* {
+		request_body {
+			max_size 105MB
+		}
+		reverse_proxy backend:8080
+	}
+
+	# 프론트(SPA). 해시가 붙은 assets 는 오래 캐시, 나머지 경로는 index.html
+	handle {
+		root * /srv
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@pages not path /assets/*
+		header @pages Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

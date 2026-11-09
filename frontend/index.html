@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // ThemeToggle 이 저장한 선택(없으면 라이트)을 그리기 전에 적용해 깜빡임을 막는다
+      var t = 'light'
+      try {
+        var saved = localStorage.getItem('origin-check.theme')
+        if (saved === 'light' || saved === 'dark') t = saved
+      } catch (e) {}
+      document.documentElement.dataset.theme = t
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap"
+    />
+    <!-- 반송 도장(404) 글씨: 나눔명조, 도장에 쓰는 글자만 받는다 -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@800&amp;display=swap&amp;text=FTA%EC%9B%90%EC%82%B0%EC%A7%80%EC%A0%90%EA%B2%80%EB%B0%98%EC%86%A1No.0123456789%20" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+    />
+    <title>FTA 원산지 서류 점검</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
