@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation, useMatch, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { ChecksProvider, useChecks } from '../checks/ChecksContext'
-import { CheckSidebar, keepListParams } from './CheckSidebar'
+import { ChecksProvider } from '../checks/ChecksContext'
+import { useChecks } from '../checks/useChecks'
+import { CheckSidebar } from './CheckSidebar'
+import { keepListParams } from '../checks/listParams'
 import { IconUpload } from './icons'
 import { NewCheckModal, type CreatedCheck, type IncomingFiles } from './NewCheckModal'
-import { Tutorial, tutorialSeen } from './Tutorial'
+import { Tutorial } from './Tutorial'
+import { tutorialSeen } from '../utils/tutorialSeen'
 
 /**
  * 로그인 후 앱 셸 (Linear 형 2단): 왼쪽 심사목록 사이드바 + 오른쪽 작업 패널.

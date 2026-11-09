@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { ApiError } from '../api/client'
 import { originChecksApi } from '../api/originChecks'
 import type { AgentFollowUp, OriginCheckDetail } from '../api/types'
 import { buildHighlights, CODE_FIELDS } from '../data/highlights'
 import { CODE_BASIS, LAWS, MISSING_DOC_BASIS, STAGE_LABEL } from '../data/legalBasis'
 import type { PanelKind } from '../checks/usePanel'
-import { IconCheck, IconCopy, IconExternal, IconFile, IconMail, IconScale, IconX } from './icons'
+import { IconCheck, IconCopy, IconExternal, IconFile, IconMail, IconRefresh, IconScale, IconX } from './icons'
 import { Markdown } from './Markdown'
 import { markdownToEmail } from '../utils/mailFormat'
 import { PdfViewer } from './PdfViewer'
+import { FOLLOW_UP_TITLE } from '../data/followUp'
 
-export const PANEL_META: Record<PanelKind, { title: string; icon: ReactNode }> = {
+const PANEL_META: Record<PanelKind, { title: string; icon: ReactNode }> = {
   law: { title: '법령 확인', icon: <IconScale /> },
   pdf: { title: '원본 PDF', icon: <IconFile /> },
   mail: { title: '후속 문서', icon: <IconMail /> },
@@ -17,12 +19,6 @@ export const PANEL_META: Record<PanelKind, { title: string; icon: ReactNode }> =
 
 const STAGE_TONE = { 1: 'danger', 2: 'warning', 3: 'caution' } as const
 
-export const FOLLOW_UP_TITLE: Record<string, string> = {
-  보완_요청_초안: '보완 요청 메일 초안',
-  미적용_안내: '미적용 안내문',
-  검토_메모: '검토 메모',
-  미분류_안내: '미분류 문서 안내',
-}
 
 /**
  * 오른쪽 사이드 패널 껍데기. 열고 닫을 때 폭이 늘었다 줄며 미끄러진다.
@@ -150,9 +146,10 @@ function LawLinks({ refs }: { refs: { id: keyof typeof LAWS; topic: string; arti
 
 /* ───────── 원본 PDF ─────────
  * 박스는 불일치(빨강) · 신뢰도 낮음(주황) · 중간(노랑)만 보인다. 신뢰도 높은 항목은 눌러서 고른 경우에만 파란 박스로 보인다. */
-export function PdfPanel({ detail, page, field, code }: { detail: OriginCheckDetail; page: number; field: string | null; code: string | null }) {
+export function PdfPanel({ detail, page, field, code, focusKey }: { detail: OriginCheckDetail; page: number; field: string | null; code: string | null; focusKey: number }) {
   const [data, setData] = useState<ArrayBuffer | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
   const highlights = useMemo(() => buildHighlights(detail), [detail])
 
   useEffect(() => {
@@ -161,26 +158,46 @@ export function PdfPanel({ detail, page, field, code }: { detail: OriginCheckDet
       .fileBlob(detail.id)
       .then((blob) => blob.arrayBuffer())
       .then((buf) => !cancelled && setData(buf))
-      .catch(() => !cancelled && setError('원본 PDF 를 불러오지 못했습니다.'))
+      .catch((e: unknown) => !cancelled && setError(pdfLoadMessage(e)))
     return () => {
       cancelled = true
     }
-  }, [detail.id])
+  }, [detail.id, attempt])
 
   return (
     <div className="pdf">
       <div className="pdf-bar">
         <span className="pdf-name" title={detail.file_name}>{detail.file_name}</span>
       </div>
-      {error && <p className="error panel-intro">{error}</p>}
+      {error && (
+        <div className="pdf-error" role="alert">
+          <p className="error">{error}</p>
+          <button type="button" className="btn-sm" onClick={() => {
+            setError(null)
+            setAttempt((n) => n + 1)
+          }}>
+            <IconRefresh size={14} /> 다시 시도
+          </button>
+        </div>
+      )}
       {!error && !data && <div className="pdf-frame skeleton-block" />}
       {data && (
         <div className="pdf-frame">
-          <PdfViewer data={data} highlights={highlights} focusId={field} focusCode={code} initialPage={page} />
+          <PdfViewer data={data} highlights={highlights} focusId={field} focusCode={code} focusKey={focusKey} initialPage={page} />
         </div>
       )}
     </div>
   )
+}
+
+/** 원본 PDF 를 못 받았을 때: 서버에 파일이 없는 경우와 연결 문제를 나눠 알려 준다 */
+function pdfLoadMessage(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 404) return '서버에 원본 PDF 파일이 없습니다. 파일을 다시 올려 주세요.'
+    if (e.status >= 500) return '서버 오류로 원본 PDF 를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.'
+    return e.message
+  }
+  return '서버에 연결하지 못해 원본 PDF 를 불러오지 못했습니다. 연결을 확인하고 다시 시도해 주세요.'
 }
 
 /* ───────── 후속 문서 (메일 초안 등) ───────── */

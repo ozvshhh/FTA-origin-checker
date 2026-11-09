@@ -3,12 +3,14 @@ import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'rea
 import { ApiError } from '../api/client'
 import { originChecksApi } from '../api/originChecks'
 import type { AgentExtractedMeta, ExtractNode, FieldMeta, OriginCheckDetail } from '../api/types'
-import { isBusy, useChecks } from '../checks/ChecksContext'
+import { isBusy } from '../checks/groups'
+import { useChecks } from '../checks/useChecks'
 import { usePanel, type PanelKind } from '../checks/usePanel'
-import { COLLAPSE_ACTIVE_GROUP, keepListParams } from '../components/CheckSidebar'
+import { COLLAPSE_ACTIVE_GROUP, keepListParams } from '../checks/listParams'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { IconAlert, IconArrowLeft, IconCheck, IconChevronDown, IconChevronRight, IconChevronUp, IconFile, IconMail, IconRefresh, IconScale, IconTrash } from '../components/icons'
-import { FOLLOW_UP_TITLE, LawPanel, MailPanel, PdfPanel, SidePanel } from '../components/SidePanels'
+import { FOLLOW_UP_TITLE } from '../data/followUp'
+import { LawPanel, MailPanel, PdfPanel, SidePanel } from '../components/SidePanels'
 import { COUNTRY_FIELDS, Country } from '../components/Country'
 import { DocChip } from '../components/DocChip'
 import { fileTypes, pageTypes } from '../data/docTypes'
@@ -43,7 +45,7 @@ export function CheckDetailPage() {
   const { checkId } = useParams()
   const { data, error, loading, refresh } = useOriginCheck(checkId)
   const { filtered, reload, doneAt, setDone, view, patchLocal, removeLocal } = useChecks()
-  const { panel, code, page, field, open, close, toggle } = usePanel()
+  const { panel, code, page, field, focusKey, open, close, toggle } = usePanel()
   const navigate = useNavigate()
   const { search } = useLocation()
   const { openNew } = useOutletContext<{ openNew: () => void }>()
@@ -227,7 +229,7 @@ export function CheckDetailPage() {
           {(k) =>
             data &&
             (k === 'law' ? <LawPanel detail={data} focusCode={code} onShowInPdf={(c) => open('pdf', { code: c })} />
-              : k === 'pdf' ? <PdfPanel detail={data} page={page} field={field} code={code} />
+              : k === 'pdf' ? <PdfPanel detail={data} page={page} field={field} code={code} focusKey={focusKey} />
                 : <MailPanel followUp={data.follow_up} />)
           }
         </SidePanel>

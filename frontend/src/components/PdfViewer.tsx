@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
-import type { PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
-import { getDocument } from '../utils/pdfjs'
+import type { PDFDocumentLoadingTask, PDFDocumentProxy, PDFPageProxy, RenderTask } from 'pdfjs-dist'
+import { openPdf } from '../utils/pdfjs'
 import type { Highlight } from '../data/highlights'
 import { IconMinus, IconPlus } from './icons'
 
@@ -18,6 +18,8 @@ export interface PdfViewerProps {
   focusId?: string | null
   /** 이 코드에 걸린 박스들을 강조하고 첫 박스로 스크롤 */
   focusCode?: string | null
+  /** 같은 대상을 다시 골랐을 때도 강조를 다시 돌리기 위한 값 (누를 때마다 바뀐다) */
+  focusKey?: number
   /** focusId·focusCode 가 없을 때 처음 보여 줄 쪽 */
   initialPage?: number
   /** true 면 신뢰도 높은 박스(초록)도 보인다 */
@@ -32,7 +34,7 @@ const PAD = 12
 
 type PageSize = { w: number; h: number }
 
-export function PdfViewer({ data, highlights = [], focusId, focusCode, initialPage = 1, showAll = false }: PdfViewerProps) {
+export function PdfViewer({ data, highlights = [], focusId, focusCode, focusKey = 0, initialPage = 1, showAll = false }: PdfViewerProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<{ hl: Highlight; box: DOMRect } | null>(null)
@@ -46,8 +48,13 @@ export function PdfViewer({ data, highlights = [], focusId, focusCode, initialPa
   // 문서 열기 (pdf.js 가 버퍼를 넘겨받아 비우므로 복사본을 넘긴다)
   useEffect(() => {
     let cancelled = false
-    const task = getDocument({ data: new Uint8Array(data.slice(0)) })
-    task.promise
+    let task: PDFDocumentLoadingTask | null = null
+    openPdf(new Uint8Array(data.slice(0)))
+      .then((t) => {
+        task = t
+        if (cancelled) t.destroy()
+        return t.promise
+      })
       .then(async (d) => {
         const s: PageSize[] = []
         for (let i = 1; i <= d.numPages; i++) {
@@ -61,7 +68,7 @@ export function PdfViewer({ data, highlights = [], focusId, focusCode, initialPa
       .catch(() => !cancelled && setError('PDF 를 열지 못했습니다.'))
     return () => {
       cancelled = true
-      task.destroy()
+      task?.destroy()
     }
   }, [data])
 
@@ -127,6 +134,7 @@ export function PdfViewer({ data, highlights = [], focusId, focusCode, initialPa
   if (focusId) selectedIds.add(focusId)
   if (focusCode) for (const h of highlights) if (h.codes.includes(focusCode)) selectedIds.add(h.id)
   const target = highlights.find((h) => h.id === focusId) ?? (focusCode ? highlights.find((h) => h.codes.includes(focusCode)) : undefined)
+  // 깜빡임은 스크롤이 멈춘 뒤에 시작한다 (0 = 아직 깜빡이지 않음). 이동 중에 끝나 버리면 눈에 안 띈다
   const [flashKey, setFlashKey] = useState(0)
   useEffect(() => {
     const el = scrollRef.current
@@ -135,14 +143,29 @@ export function PdfViewer({ data, highlights = [], focusId, focusCode, initialPa
       const p = sizes[target.page - 1]
       if (!p) return
       const y = pageTop(target.page) + target.rect.y * p.h * scale
-      el.scrollTo({ top: Math.max(0, y - el.clientHeight / 3), behavior: 'smooth' })
-      setFlashKey((k) => k + 1)
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      el.scrollTo({ top: Math.max(0, y - el.clientHeight / 3), behavior: reduce ? 'auto' : 'smooth' })
+      setFlashKey(0)
+      // scrollTop 이 150ms 동안 그대로면 도착한 것으로 본다 (부드러운 스크롤 끝 + 쪽 그림이 그려질 틈)
+      let last = -1
+      let still = 0
+      const started = Date.now()
+      const timer = window.setInterval(() => {
+        const top = el.scrollTop
+        still = top === last ? still + 1 : 0
+        last = top
+        if (still >= 3 || Date.now() - started > 2000) {
+          window.clearInterval(timer)
+          setFlashKey((k) => k + 1)
+        }
+      }, 50)
+      return () => window.clearInterval(timer)
     } else if (initialPage > 1) {
       el.scrollTo({ top: pageTop(initialPage) - PAD })
     }
     // 포커스 대상이 바뀔 때만 이동한다 (확대·축소 때는 위치 유지 로직이 맡는다)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [target?.id, focusCode, initialPage, sizes.length, width > 0])
+  }, [target?.id, focusCode, focusKey, initialPage, sizes.length, width > 0])
 
   if (error) return <div className="pv-state">{error}</div>
 
@@ -250,10 +273,11 @@ function PageView({ doc, pageNumber, size, scale, root, highlights, selectedIds,
       <canvas ref={canvasRef} className="pv-canvas" />
       {highlights.map((hl) => {
         const sel = selectedIds.has(hl.id)
+        const flash = sel && flashKey > 0
         return (
           <div
-            key={sel ? `${hl.id}-${flashKey}` : hl.id}
-            className={`hl-box hl-${hl.level}${sel ? ' is-flash' : ''}`}
+            key={flash ? `${hl.id}-${flashKey}` : hl.id}
+            className={`hl-box hl-${hl.level}${flash ? ' is-flash' : ''}`}
             style={{ left: `${hl.rect.x * 100}%`, top: `${hl.rect.y * 100}%`, width: `${hl.rect.w * 100}%`, height: `${hl.rect.h * 100}%` }}
             aria-label={hl.label}
             onMouseEnter={(e) => onHover(hl, e.currentTarget)}

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation, useMatch } from 'react-router-dom'
 import type { OriginCheckSummary } from '../api/types'
-import { RESULT_FILTERS, useChecks, type CheckGroup, type GroupKey } from '../checks/ChecksContext'
+import { RESULT_FILTERS, type CheckGroup, type GroupKey } from '../checks/groups'
+import { useChecks } from '../checks/useChecks'
+import { COLLAPSE_ACTIVE_GROUP, keepListParams } from '../checks/listParams'
 import { formatRelative } from '../utils/format'
 import { itemLabel, memoOf, shortCompany } from '../utils/party'
 import { IconChevronDown, IconChevronRight, IconHelp, IconLogout, IconPlus, IconSearch, LogoMark } from './icons'
@@ -244,19 +246,4 @@ function SidebarSkeleton() {
       ))}
     </ul>
   )
-}
-
-/** 상세에서 맨 위 심사일 때 ↑ 를 누르면 보내는 이벤트 이름 */
-export const COLLAPSE_ACTIVE_GROUP = 'checks:collapse-active-group'
-
-/** 목록 필터(tab·q·sort)만 남긴 쿼리스트링. 상세 패널 상태(panel 등)는 목록 링크에 싣지 않는다 */
-export function keepListParams(search: string) {
-  const src = new URLSearchParams(search)
-  const out = new URLSearchParams()
-  for (const k of ['tab', 'q', 'sort', 'view', 'result']) {
-    const v = src.get(k)
-    if (v) out.set(k, v)
-  }
-  const s = out.toString()
-  return s ? `?${s}` : ''
 }

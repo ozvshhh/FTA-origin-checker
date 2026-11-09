@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { IconFile } from './icons'
+import { markSeen } from '../utils/tutorialSeen'
 
 /**
  * 처음 로그인한 사용자에게 한 번 보여 주는 코치마크.
@@ -7,23 +8,6 @@ import { IconFile } from './icons'
  * 1장 = 왼쪽 목록, 2장 = 심사 상세 + 원본 PDF 패널(열린 심사가 없으면 예시 한 건을 연다). 아무 데나 누르면 다음 장.
  * 대상은 화면 요소의 data-tour 속성으로 찾는다. 안 보이는 대상은 건너뛴다(좁은 화면, 빈 목록 등).
  */
-const KEY = 'origin-check.tutorial.v1'
-
-/** 이 사용자가 튜토리얼을 이미 봤는가. [백엔드 추가 후보] 지금은 브라우저에만 기억한다 */
-export function tutorialSeen(userId: number | string) {
-  try {
-    return localStorage.getItem(`${KEY}.${userId}`) === 'done'
-  } catch {
-    return true // 저장소를 못 쓰면 매번 띄우지 않는다
-  }
-}
-function markSeen(userId: number | string) {
-  try {
-    localStorage.setItem(`${KEY}.${userId}`, 'done')
-  } catch {
-    /* noop */
-  }
-}
 
 type Place = 'right' | 'left' | 'below' | 'above'
 type Align = 'start' | 'center' | 'end'
@@ -152,7 +136,22 @@ function place(mark: Mark): Placed | null {
   let s: [number, number], e: [number, number], c: [number, number]
   let label: CSSProperties
   const at = mark.at ?? 0.5
-  switch (mark.place) {
+  // 좁은 화면: 옆에 글 놓을 자리가 없으면 아래 → 위 → 대상 안쪽 순으로 옮기고, 밝은 곳에서도 읽히게 어두운 바탕을 깐다
+  const LABEL_W = 220
+  let where: Place | 'inside' = mark.place
+  let al: Align = align
+  const sideRoom = mark.place === 'right' ? x + w + gap + len + LABEL_W <= vw : mark.place === 'left' ? mark.outside != null || x - gap - len - LABEL_W >= 0 : true
+  if (!sideRoom) {
+    al = x + w / 2 > vw / 2 ? 'end' : 'start'
+    // 화면 대부분을 차지하는 대상(좁은 화면의 목록)은 안쪽에 글을 둔다
+    where = h > vh * 0.4 ? 'inside' : y + h + gap + len + 60 <= vh ? 'below' : y - gap - len - 60 >= 0 ? 'above' : 'inside'
+  }
+  const pill: CSSProperties = sideRoom ? {} : { background: 'rgb(12 12 16 / .9)', padding: '6px 10px', borderRadius: 8, maxWidth: vw - 32 }
+  if (where === 'inside') {
+    const label: CSSProperties = { ...pill, left: x + w / 2, top: y + Math.min(h / 2, 240), transform: 'translate(-50%, -50%)', textAlign: 'center' }
+    return { mark, hole: { x, y, w, h, r: rad }, arrow: null, head: null, label }
+  }
+  switch (where) {
     case 'right': {
       s = [x + w + gap, y + h * at]
       e = [s[0] + len, s[1] + 14]
@@ -172,17 +171,20 @@ function place(mark: Mark): Placed | null {
     }
     case 'below':
     case 'above': {
-      const down = mark.place === 'below'
-      const side = align === 'end' ? -1 : align === 'start' ? 1 : 0
-      s = [x + w / 2, down ? y + h + gap : y - gap]
+      const down = where === 'below'
+      const side = al === 'end' ? -1 : al === 'start' ? 1 : 0
+      // 옆에서 옮겨 온 글은 대상의 가운데 대신 화면 안쪽 가장자리 근처에서 화살표를 뺀다
+      const sx = sideRoom ? x + w / 2 : al === 'end' ? Math.min(x + w / 2, vw - 40) : Math.max(x + w / 2, 40)
+      s = [sx, down ? y + h + gap : y - gap]
       e = [s[0] + side * 18, s[1] + (down ? len : -len)]
       c = [s[0] + (side || 1) * -14, s[1] + (down ? len : -len) * 0.5]
-      const tx = align === 'end' ? 'calc(-100% + 28px)' : align === 'start' ? '-28px' : '-50%'
+      const tx = al === 'end' ? 'calc(-100% + 28px)' : al === 'start' ? '-28px' : '-50%'
       label = {
+        ...pill,
         left: e[0],
         top: e[1],
         transform: `translate(${tx}, ${down ? '8px' : 'calc(-100% - 8px)'})`,
-        textAlign: align === 'end' ? 'right' : align === 'start' ? 'left' : 'center',
+        textAlign: al === 'end' ? 'right' : al === 'start' ? 'left' : 'center',
       }
       break
     }
@@ -283,7 +285,7 @@ export function Tutorial({ userId, onClose, onStart, sampleId, onShowDetail, has
       const next = page.marks.map(place).filter((p): p is Placed => p != null)
       const ws = document.querySelector('.workspace')?.getBoundingClientRect()
       // 가운데 문구는 오른쪽 작업 영역 기준. 좁은 화면에서 작업 영역이 숨으면 목록을 가리지 않게 빼 둔다
-      const c = ws && ws.width > 0 ? { x: ws.left + ws.width / 2, y: ws.top + ws.height * (page.key === 'list' ? 0.56 : 0.86) } : null
+      const c = ws && ws.width > 0 ? { x: ws.left + ws.width / 2, y: ws.top + ws.height * (page.key === 'list' ? 0.42 : 0.86) } : null
       const sig = JSON.stringify([next.map((p) => p.hole), c])
       if (sig === last) return
       last = sig

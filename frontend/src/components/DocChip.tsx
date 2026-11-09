@@ -11,7 +11,7 @@ const CODE: Record<string, string> = {
   수출신고필증: '신고필증',
 }
 
-export function docCode(name: string) {
+function docCode(name: string) {
   return CODE[name] ?? name
 }
 

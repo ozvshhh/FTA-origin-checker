@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useOutletContext } from 'react-router-dom'
-import { GROUPS, useChecks } from '../checks/ChecksContext'
-import { keepListParams } from '../components/CheckSidebar'
+import { GROUPS } from '../checks/groups'
+import { useChecks } from '../checks/useChecks'
+import { keepListParams } from '../checks/listParams'
 import { IconInbox, IconPlus } from '../components/icons'
 
 /** /checks — 아직 심사를 고르지 않았을 때 오른쪽 패널. 진행 중 건수를 왼쪽 목록과 같은 묶음·순서로 + 심사 생성 */

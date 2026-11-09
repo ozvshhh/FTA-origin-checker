@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useLocation, useSearchParams } from 'react-router-dom'
 
 /** 상세 화면 오른쪽 사이드 패널. 쿼리스트링(?panel=law&code=… / ?panel=pdf&field=…)에 둬서 링크로 공유·새로고침해도 유지된다 */
 export type PanelKind = 'law' | 'pdf' | 'mail'
@@ -12,6 +12,8 @@ export function usePanel() {
   const code = params.get('code')
   const page = Math.max(1, Number(params.get('page')) || 1)
   const field = params.get('field')
+  // 같은 항목을 다시 눌러도 주소는 그대로라, 누를 때마다 바뀌는 값을 따로 실어 PDF 강조를 다시 돌린다
+  const focusKey = (useLocation().state as { focus?: number } | null)?.focus ?? 0
 
   const open = useCallback(
     (kind: PanelKind, opts: { code?: string; page?: number; field?: string } = {}) =>
@@ -23,7 +25,7 @@ export function usePanel() {
         if (opts.page) p.set('page', String(opts.page))
         if (opts.field) p.set('field', opts.field)
         return p
-      }, { replace: true }),
+      }, { replace: true, state: { focus: Date.now() } }),
     [setParams],
   )
 
@@ -40,5 +42,5 @@ export function usePanel() {
   /** 같은 패널 버튼을 다시 누르면 닫힌다 */
   const toggle = useCallback((kind: PanelKind) => (panel === kind ? close() : open(kind)), [panel, open, close])
 
-  return { panel, code, page, field, open, close, toggle }
+  return { panel, code, page, field, focusKey, open, close, toggle }
 }
