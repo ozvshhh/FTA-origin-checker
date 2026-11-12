@@ -47,7 +47,7 @@
 ## 기술 스택
 
 - 백엔드: Java 21, Spring Boot 4.1, Gradle, MySQL(JPA, Flyway), JWT
-- 프론트엔드: React 19, TypeScript, Vite, React Router, PDF 뷰어
+- 프론트엔드: React 19, TypeScript, Vite, React Router, pdf.js
 - 인프라: Docker Compose, Caddy(HTTPS), AWS Lightsail
 - AI: Upstage 워크플로(비동기 호출)
 
