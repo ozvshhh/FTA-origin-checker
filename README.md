@@ -1,6 +1,57 @@
-# trade-doc-origin-check
+# FTA 원산지 서류 점검
 
-수출 서류(인보이스·패킹리스트·B/L·원산지증명서·원산지확인서·수출신고필증)를 대조해 원산지 증명 적용 가능 여부를 사전 점검하는 서비스.
+수출 서류(인보이스·패킹리스트·B/L·원산지증명서·원산지확인서·수출신고필증)를 서로 대조해, **FTA 원산지 증명을 적용할 수 있는지 미리 점검**해 주는 웹 서비스입니다. 업스테이지(Upstage) 해커톤에서 팀(5명)으로 만들었습니다.
+
+- 데모: https://ip-3-36-19-235.sslip.io/ ("가입 없이 체험하기"로 바로 써 볼 수 있습니다)
+- 원본 저장소: [vector2967/trade-doc-origin-check](https://github.com/vector2967/trade-doc-origin-check) (이 저장소는 포크입니다)
+
+![판정 결과](docs/screenshots/result.webp)
+
+## 주요 기능
+
+- **서류 대조 점검**: PDF를 여러 개 올리면 AI(Upstage)가 서류 간 값을 비교해 판정, 불일치 항목, 후속 조치 서류를 알려 줍니다. 접수는 바로 끝나고 분석은 서버에서 비동기로 진행됩니다.
+- **PDF 형광펜**: 원본 PDF 위에 불일치·신뢰도 낮음·중간 값을 색으로 칠하고, 마우스를 올리면 이유를 보여 줍니다.
+- **파일 탐색기**: 체험용 서류 폴더에서 파일을 골라 끌어 놓으면 점검이 시작됩니다.
+- **안내창(코치마크)**: 처음 쓰는 사람에게 실제 버튼을 짚어 가며 사용법을 알려 줍니다.
+- **단축키**: 키보드만으로 심사를 넘겨 가며 처리할 수 있습니다.
+
+| 키 | 동작 |
+|---|---|
+| `↑` / `k` | 이전 심사 (맨 위에서 한 번 더 누르면 목록 묶음 접기) |
+| `↓` / `j` | 다음 심사 |
+| `e` | 완료 처리 / 되돌리기 |
+| `Esc` | 원본 PDF 등 패널 닫기 |
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/explorer.webp" alt="파일 탐색기"></td>
+    <td><img src="docs/screenshots/checklist.webp" alt="서류 체크리스트"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/highlight.webp" alt="PDF 형광펜"></td>
+    <td><img src="docs/screenshots/guide.webp" alt="안내창"></td>
+  </tr>
+</table>
+
+## 구성과 역할
+
+| 영역 | 담당 |
+|---|---|
+| AI 에이전트(서류 분석 워크플로) | 팀원 |
+| 백엔드(Spring Boot), 프론트엔드(React), Lightsail 배포 | 이하은 |
+| 화면 디자인 테마 | 팀원 |
+| 데모 영상·발표 자료 | 팀원 |
+
+> 백엔드·프론트엔드 코드는 AI 코딩 도구의 도움을 많이 받아 작성했습니다. 이하은은 웹 전반의 설계, 구현, 배포를 맡았습니다.
+
+## 기술 스택
+
+- 백엔드: Java 21, Spring Boot 4.1, Gradle, MySQL(JPA, Flyway), JWT
+- 프론트엔드: React 19, TypeScript, Vite, React Router, PDF 뷰어
+- 인프라: Docker Compose, Caddy(HTTPS), AWS Lightsail
+- AI: Upstage 워크플로(비동기 호출)
+
+## 프로젝트 구조
 
 ```
 trade-doc-origin-check/
